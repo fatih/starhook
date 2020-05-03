@@ -44,6 +44,10 @@ func realMain() error {
 	)
 	flag.Parse()
 
+	if *token == "" {
+		return errors.New("GitHub API token is not set via --token")
+	}
+
 	fmt.Println("==> searching and fetching repositories")
 	start := time.Now()
 	ctx := context.Background()
@@ -59,7 +63,8 @@ func realMain() error {
 	}
 
 	var repos []github.Repository
-	if out, err := ioutil.ReadFile("repos.json"); err != nil {
+	repodb := filepath.Join(*dir, "repos.json")
+	if out, err := ioutil.ReadFile(repodb); err != nil {
 		repos, err = client.fetchRepos(ctx, *query)
 		if err != nil {
 			return err
@@ -71,7 +76,7 @@ func realMain() error {
 			return err
 		}
 
-		if err := ioutil.WriteFile("repos.json", out, 0644); err != nil {
+		if err := ioutil.WriteFile(repodb, out, 0644); err != nil {
 			return err
 		}
 
@@ -162,12 +167,10 @@ func (c *Client) cloneRepo(ctx context.Context, repo github.Repository) error {
 
 	// do not clone if it exists
 	if _, err := os.Stat(repoDir); err == nil {
-		// path is a directory
-		fmt.Println("  dir exists, skipping", repoDir)
 		return nil
 	}
 
-	fmt.Printf("  cloning %s\n", repoDir)
+	fmt.Printf("  cloning %s\n", repo.GetName())
 	args := []string{"clone", repo.GetCloneURL(), "--depth=1", repoDir}
 	cmd := exec.Command("git", args...)
 	out, err := cmd.CombinedOutput()
