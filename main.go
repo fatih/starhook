@@ -38,9 +38,10 @@ type Client struct {
 
 func realMain() error {
 	var (
-		token = flag.String("token", "", "github token, i.e: GITHUB_TOKEN")
-		dir   = flag.String("dir", "repos", "path to download the repositories")
-		query = flag.String("query", "org:github language:go", "query to fetch")
+		token  = flag.String("token", "", "github token, i.e: GITHUB_TOKEN")
+		dir    = flag.String("dir", "repos", "path to download the repositories")
+		query  = flag.String("query", "org:github language:go", "query to fetch")
+		update = flag.Bool("update", false, "update the repositores to latest HEAD")
 	)
 	flag.Parse()
 
@@ -63,8 +64,13 @@ func realMain() error {
 	}
 
 	var repos []github.Repository
-	repodb := filepath.Join(*dir, "repos.json")
-	if out, err := ioutil.ReadFile(repodb); err != nil {
+	reposfile := filepath.Join(*dir, "repos.json")
+	out, err := ioutil.ReadFile(reposfile)
+	if err != nil {
+		if *update {
+			return fmt.Errorf("no repos.json file found in dir %q. Please remove the --update flag", *dir)
+		}
+
 		repos, err = client.fetchRepos(ctx, *query)
 		if err != nil {
 			return err
@@ -76,7 +82,7 @@ func realMain() error {
 			return err
 		}
 
-		if err := ioutil.WriteFile(repodb, out, 0644); err != nil {
+		if err := ioutil.WriteFile(reposfile, out, 0644); err != nil {
 			return err
 		}
 
@@ -88,12 +94,68 @@ func realMain() error {
 			return err
 		}
 
-		fmt.Printf("==> using existing data: %d repositores (elapsed time: %s)\n",
+		fmt.Printf("==> repos.json found: %d repositores (elapsed time: %s)\n",
 			len(repos), time.Since(start).String())
+
 	}
 
-	if err := client.cloneRepos(ctx, repos); err != nil {
+	if *update {
+		fmt.Println("==> updating repositories ...")
+		if err := client.updateRepos(ctx, reposfile, *query, repos); err != nil {
+			return err
+		}
+	} else {
+		if err := client.cloneRepos(ctx, repos); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (c *Client) updateRepos(ctx context.Context, reposfile, query string, repos []github.Repository) error {
+	toMap := func(rps []github.Repository) map[string]github.Repository {
+		m := make(map[string]github.Repository, len(rps))
+		for _, r := range rps {
+			r := r
+			m[r.GetName()] = r
+		}
+		return m
+	}
+
+	// get a a list of all repo's again
+	fmt.Println("==> fetching repositories again")
+	newRepos, err := c.fetchRepos(ctx, query)
+	if err != nil {
 		return err
+	}
+
+	// dump data so we don't fetch it again
+	out, err := json.MarshalIndent(newRepos, " ", " ")
+	if err != nil {
+		return err
+	}
+
+	// TODO(fatih): don't write yet, update the repositories file once we know we updated all repositories
+	// if err := ioutil.WriteFile(reposfile, out, 0644); err != nil {
+	// 	return err
+	// }
+
+	current := toMap(repos)
+	updated := toMap(newRepos)
+
+	fmt.Println("==> comparing repositories")
+	for upd, nr := range updated {
+		or, ok := current[upd]
+		if !ok {
+			// new repo
+			continue
+		}
+
+		if nr.GetPushedAt().After(or.GetPushedAt().Time) {
+			fmt.Printf("==> repo %q is updated\n", nr.GetName())
+			// make sure to sync repo as well, compare pushed_at with head ...
+		}
 	}
 
 	return nil
@@ -102,6 +164,7 @@ func realMain() error {
 func (c *Client) fetchRepos(ctx context.Context, query string) ([]github.Repository, error) {
 	opts := &github.SearchOptions{
 		ListOptions: github.ListOptions{PerPage: 50},
+		Sort:        "updated",
 	}
 
 	var repos []github.Repository
