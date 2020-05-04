@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/google/go-github/v28/github"
@@ -142,9 +143,7 @@ func (c *Client) updateRepos(ctx context.Context, reposfile, query string, repos
 	for upd, nr := range updated {
 		nr := nr
 
-		err := sem.Acquire(ctx, 1)
-		if err != nil {
-			fmt.Printf("acquire err = %+v\n", err)
+		if err := sem.Acquire(ctx, 1); err != nil {
 			break
 		}
 
@@ -158,7 +157,10 @@ func (c *Client) updateRepos(ctx context.Context, reposfile, query string, repos
 
 		g.Go(func() error {
 			defer sem.Release(1)
-			return c.updateRepo(ctx, nr)
+			if err := c.updateRepo(ctx, nr); err != nil {
+				return fmt.Errorf("updating repo %q has failed: %w", nr.GetName(), err)
+			}
+			return nil
 		})
 	}
 
@@ -182,13 +184,8 @@ func (c *Client) updateRepos(ctx context.Context, reposfile, query string, repos
 }
 
 func (c *Client) updateRepo(ctx context.Context, repo github.Repository) error {
-	repoDir := filepath.Join(c.CloneDir, repo.GetName())
-
-	if err := os.Chdir(repoDir); err != nil {
-		return err
-	}
-
 	fmt.Printf("  updating %s\n", repo.GetName())
+	repoDir := filepath.Join(c.CloneDir, repo.GetName())
 	g := &git{dir: repoDir}
 
 	if _, err := g.run("reset", "--hard"); err != nil {
@@ -203,7 +200,7 @@ func (c *Client) updateRepo(ctx context.Context, repo github.Repository) error {
 		return err
 	}
 
-	_, err = g.run("pull", "origin", string(branch))
+	_, err = g.run("pull", "origin", strings.TrimSpace(string(branch)))
 	if err != nil {
 		return err
 	}
