@@ -85,9 +85,6 @@ func realMain() error {
 		if err := ioutil.WriteFile(reposfile, out, 0644); err != nil {
 			return err
 		}
-
-		fmt.Printf("==> fetched: %d repositores (elapsed time: %s)\n",
-			len(repos), time.Since(start).String())
 	} else {
 		// load from cached file
 		if err := json.Unmarshal(out, &repos); err != nil {
@@ -130,38 +127,93 @@ func (c *Client) updateRepos(ctx context.Context, reposfile, query string, repos
 		return err
 	}
 
-	// dump data so we don't fetch it again
+	current := toMap(repos)
+	updated := toMap(newRepos)
+
+	fmt.Printf("==> updating: %d repositories\n", len(newRepos))
+	start := time.Now()
+
+	// download at max 10 repos at the same time to not overload and burst the
+	// server. Also makes it easier
+	const maxWorkers = 10
+	sem := semaphore.NewWeighted(maxWorkers)
+
+	g, ctx := errgroup.WithContext(ctx)
+	for upd, nr := range updated {
+		nr := nr
+
+		err := sem.Acquire(ctx, 1)
+		if err != nil {
+			fmt.Printf("acquire err = %+v\n", err)
+			break
+		}
+
+		if _, ok := current[upd]; !ok {
+			fmt.Printf("==> found a new repo %q\n", nr.GetName())
+			if err := c.cloneRepo(ctx, nr); err != nil {
+				return err
+			}
+			continue
+		}
+
+		g.Go(func() error {
+			defer sem.Release(1)
+			return c.updateRepo(ctx, nr)
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		fmt.Printf("g.Wait() err = %+v\n", err)
+	}
+
+	fmt.Printf("==> updated: %d repositores (elapsed time: %s)\n",
+		len(repos), time.Since(start).String())
+
 	out, err := json.MarshalIndent(newRepos, " ", " ")
 	if err != nil {
 		return err
 	}
 
-	// TODO(fatih): don't write yet, update the repositories file once we know we updated all repositories
-	// if err := ioutil.WriteFile(reposfile, out, 0644); err != nil {
-	// 	return err
-	// }
+	if err := ioutil.WriteFile(reposfile, out, 0644); err != nil {
+		return err
+	}
 
-	current := toMap(repos)
-	updated := toMap(newRepos)
+	return nil
+}
 
-	fmt.Println("==> comparing repositories")
-	for upd, nr := range updated {
-		or, ok := current[upd]
-		if !ok {
-			// new repo
-			continue
-		}
+func (c *Client) updateRepo(ctx context.Context, repo github.Repository) error {
+	repoDir := filepath.Join(c.CloneDir, repo.GetName())
 
-		if nr.GetPushedAt().After(or.GetPushedAt().Time) {
-			fmt.Printf("==> repo %q is updated\n", nr.GetName())
-			// make sure to sync repo as well, compare pushed_at with head ...
-		}
+	if err := os.Chdir(repoDir); err != nil {
+		return err
+	}
+
+	fmt.Printf("  updating %s\n", repo.GetName())
+	g := &git{dir: repoDir}
+
+	if _, err := g.run("reset", "--hard"); err != nil {
+		return err
+	}
+	if _, err := g.run("clean", "-df"); err != nil {
+		return err
+	}
+
+	branch, err := g.run("rev-parse", "--abbrev-ref", "HEAD")
+	if err != nil {
+		return err
+	}
+
+	_, err = g.run("pull", "origin", string(branch))
+	if err != nil {
+		return err
 	}
 
 	return nil
 }
 
 func (c *Client) fetchRepos(ctx context.Context, query string) ([]github.Repository, error) {
+	start := time.Now()
+
 	opts := &github.SearchOptions{
 		ListOptions: github.ListOptions{PerPage: 50},
 		Sort:        "updated",
@@ -183,6 +235,8 @@ func (c *Client) fetchRepos(ctx context.Context, query string) ([]github.Reposit
 		opts.Page = resp.NextPage
 	}
 
+	fmt.Printf("==> fetched: %d repositories (elapsed time: %s)\n",
+		len(repos), time.Since(start).String())
 	return repos, nil
 }
 
@@ -234,13 +288,30 @@ func (c *Client) cloneRepo(ctx context.Context, repo github.Repository) error {
 	}
 
 	fmt.Printf("  cloning %s\n", repo.GetName())
-	args := []string{"clone", repo.GetCloneURL(), "--depth=1", repoDir}
-	cmd := exec.Command("git", args...)
-	out, err := cmd.CombinedOutput()
+	g := &git{}
+	_, err := g.run("clone", repo.GetCloneURL(), "--depth=1", repoDir)
 	if err != nil {
-		return fmt.Errorf("git clone failed for url: %q err: %s out: %s",
-			repo.GetCloneURL(), err, string(out))
+		return err
 	}
 
 	return nil
+}
+
+type git struct {
+	dir string
+}
+
+func (g *git) run(args ...string) ([]byte, error) {
+	c := exec.Command("git", args...)
+	if g.dir != "" {
+		c.Dir = g.dir
+	}
+
+	out, err := c.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("running git failed: %w (out:%s, args: %+v)",
+			err, string(out), args)
+	}
+
+	return out, nil
 }
