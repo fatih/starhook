@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fatih/starhook/internal/git"
+
 	"github.com/google/go-github/v28/github"
 	"golang.org/x/oauth2"
 	"golang.org/x/sync/errgroup"
@@ -186,21 +188,21 @@ func (c *Client) updateRepos(ctx context.Context, reposfile, query string, repos
 func (c *Client) updateRepo(ctx context.Context, repo github.Repository) error {
 	fmt.Printf("  updating %s\n", repo.GetName())
 	repoDir := filepath.Join(c.CloneDir, repo.GetName())
-	g := &git{dir: repoDir}
+	g := &git.Client{Dir: repoDir}
 
-	if _, err := g.run("reset", "--hard"); err != nil {
+	if _, err := g.Run("reset", "--hard"); err != nil {
 		return err
 	}
-	if _, err := g.run("clean", "-df"); err != nil {
+	if _, err := g.Run("clean", "-df"); err != nil {
 		return err
 	}
 
-	branch, err := g.run("rev-parse", "--abbrev-ref", "HEAD")
+	branch, err := g.Run("rev-parse", "--abbrev-ref", "HEAD")
 	if err != nil {
 		return err
 	}
 
-	_, err = g.run("pull", "origin", strings.TrimSpace(string(branch)))
+	_, err = g.Run("pull", "origin", strings.TrimSpace(string(branch)))
 	if err != nil {
 		return err
 	}
@@ -285,30 +287,11 @@ func (c *Client) cloneRepo(ctx context.Context, repo github.Repository) error {
 	}
 
 	fmt.Printf("  cloning %s\n", repo.GetName())
-	g := &git{}
-	_, err := g.run("clone", repo.GetCloneURL(), "--depth=1", repoDir)
+	g := &git.Client{}
+	_, err := g.Run("clone", repo.GetCloneURL(), "--depth=1", repoDir)
 	if err != nil {
 		return err
 	}
 
 	return nil
-}
-
-type git struct {
-	dir string
-}
-
-func (g *git) run(args ...string) ([]byte, error) {
-	c := exec.Command("git", args...)
-	if g.dir != "" {
-		c.Dir = g.dir
-	}
-
-	out, err := c.CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("running git failed: %w (out:%s, args: %+v)",
-			err, string(out), args)
-	}
-
-	return out, nil
 }
