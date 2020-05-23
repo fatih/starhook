@@ -28,6 +28,10 @@ type RepositoryStore struct {
 }
 
 func NewRepositoryStore(dir string) (*RepositoryStore, error) {
+	return newRepositoryStore(dir, time.Now().UTC)
+}
+
+func newRepositoryStore(dir string, nowFn func() time.Time) (*RepositoryStore, error) {
 	reposfile := filepath.Join(dir, "repos.json")
 
 	// check if the file exists
@@ -38,7 +42,18 @@ func NewRepositoryStore(dir string) (*RepositoryStore, error) {
 
 	// if not, create a new one
 	if os.IsNotExist(err) {
-		if err := ioutil.WriteFile(reposfile, []byte(`{}`), 0666); err != nil {
+		now := nowFn()
+		db := internalDB{
+			CreatedAt: now,
+			UpdatedAt: now,
+		}
+
+		out, err := json.MarshalIndent(&db, " ", "  ")
+		if err != nil {
+			return nil, err
+		}
+
+		if err := ioutil.WriteFile(reposfile, []byte(out), 0666); err != nil {
 			return nil, err
 		}
 	}
@@ -66,6 +81,30 @@ func (r *RepositoryStore) FindRepos(ctx context.Context) ([]*internal.Repository
 	return db.Repositories, nil
 }
 
+func (r *RepositoryStore) FindRepo(ctx context.Context, repoID int64) (*internal.Repository, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	in, err := ioutil.ReadFile(r.path)
+	if err != nil {
+		return nil, err
+	}
+
+	var db internalDB
+	err = json.Unmarshal(in, &db)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, repo := range db.Repositories {
+		if repo.ID == repoID {
+			return repo, nil
+		}
+	}
+
+	return nil, internal.ErrNotFound
+}
+
 func (r *RepositoryStore) CreateRepo(ctx context.Context, repo *internal.Repository) (int64, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -83,13 +122,16 @@ func (r *RepositoryStore) CreateRepo(ctx context.Context, repo *internal.Reposit
 
 	if len(db.Repositories) == 0 {
 		repo.ID = 1
-		db.CreatedAt = time.Now() //created the first time
 	} else {
 		repo.ID = int64(len(db.Repositories)) + 1
 	}
 
+	now := time.Now().UTC()
+	repo.CreatedAt = now
+	repo.UpdatedAt = now
+
 	db.Repositories = append(db.Repositories, repo)
-	db.UpdatedAt = time.Now().UTC()
+	db.UpdatedAt = now
 
 	out, err := json.MarshalIndent(&db, " ", "  ")
 	if err != nil {

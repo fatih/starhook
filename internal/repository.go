@@ -2,14 +2,17 @@ package internal
 
 import (
 	"context"
+	"errors"
 	"time"
 )
+
+var ErrNotFound = errors.New("not found")
 
 // Repository represents a repository on GitHub
 type Repository struct {
 	ID        int64
-	Name      string // i.e: vim-go, gh-ost
 	Owner     string // i.e: fatih, github
+	Name      string // i.e: vim-go, gh-ost
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }

@@ -1,6 +1,7 @@
 package jsonstore
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -9,6 +10,9 @@ import (
 	"reflect"
 	"runtime"
 	"testing"
+	"time"
+
+	"github.com/fatih/starhook/internal"
 )
 
 func TestNewRepositoryStore_newFile(t *testing.T) {
@@ -20,7 +24,10 @@ func TestNewRepositoryStore_newFile(t *testing.T) {
 		os.RemoveAll(dir)
 	})
 
-	store, err := NewRepositoryStore(dir)
+	nowFn := func() time.Time {
+		return time.Date(2020, 03, 11, 0, 0, 0, 0, time.UTC)
+	}
+	store, err := newRepositoryStore(dir, nowFn)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,8 +43,9 @@ func TestNewRepositoryStore_newFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	equals(t, string(out), `{}`)
 	equals(t, len(db.Repositories), 0)
+	equals(t, db.CreatedAt, nowFn())
+	equals(t, db.UpdatedAt, nowFn())
 }
 
 func TestNewRepositoryStore_existingFile(t *testing.T) {
@@ -80,6 +88,197 @@ func TestNewRepositoryStore_existingFile(t *testing.T) {
 	equals(t, string(out), content)
 }
 
+func TestNewRepositoryStore_CreateRepo(t *testing.T) {
+	dir, err := ioutil.TempDir("", "starhook")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		os.RemoveAll(dir)
+	})
+
+	store, err := NewRepositoryStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	repo := &internal.Repository{
+		Owner: "fatih",
+		Name:  "vim-go",
+	}
+
+	ctx := context.Background()
+	id, err := store.CreateRepo(ctx, repo)
+
+	ok(t, err)
+	equals(t, id, int64(1))
+
+	out, err := ioutil.ReadFile(store.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var db internalDB
+	err = json.Unmarshal(out, &db)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// the number of repos should be one
+	equals(t, len(db.Repositories), 1)
+
+	// db.UpdatedAt should be refreshed as well
+	assert(t, db.UpdatedAt.After(db.CreatedAt), "updated_at should be updated and should have a timestamp after created_at")
+}
+
+func TestNewRepositoryStore_CreateRepo_multiple(t *testing.T) {
+	dir, err := ioutil.TempDir("", "starhook")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		os.RemoveAll(dir)
+	})
+
+	store, err := NewRepositoryStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	repo := &internal.Repository{
+		Owner: "fatih",
+		Name:  "vim-go",
+	}
+
+	ctx := context.Background()
+
+	id1, err := store.CreateRepo(ctx, repo)
+	ok(t, err)
+
+	id2, err := store.CreateRepo(ctx, repo)
+	ok(t, err)
+
+	id3, err := store.CreateRepo(ctx, repo)
+	ok(t, err)
+
+	equals(t, id1, int64(1))
+	equals(t, id2, int64(2))
+	equals(t, id3, int64(3))
+
+	out, err := ioutil.ReadFile(store.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var db internalDB
+	err = json.Unmarshal(out, &db)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	equals(t, len(db.Repositories), 3)
+}
+
+func TestNewRepositoryStore_FindRepos(t *testing.T) {
+	dir, err := ioutil.TempDir("", "starhook")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		os.RemoveAll(dir)
+	})
+
+	store, err := NewRepositoryStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	repo := &internal.Repository{
+		Owner: "fatih",
+		Name:  "vim-go",
+	}
+
+	ctx := context.Background()
+
+	_, err = store.CreateRepo(ctx, repo)
+	ok(t, err)
+	_, err = store.CreateRepo(ctx, repo)
+	ok(t, err)
+	_, err = store.CreateRepo(ctx, repo)
+	ok(t, err)
+
+	repos, err := store.FindRepos(ctx)
+	ok(t, err)
+
+	equals(t, len(repos), 3)
+}
+
+func TestNewRepositoryStore_UpdateRepo(t *testing.T) {
+	dir, err := ioutil.TempDir("", "starhook")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		os.RemoveAll(dir)
+	})
+
+	store, err := NewRepositoryStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	repo := &internal.Repository{
+		Owner: "fatih",
+		Name:  "vim-go",
+	}
+
+	ctx := context.Background()
+	id, err := store.CreateRepo(ctx, repo)
+	ok(t, err)
+
+	err = store.UpdateRepo(ctx, id, internal.RepositoryUpdate{})
+	ok(t, err)
+
+	rp, err := store.FindRepo(ctx, id)
+	ok(t, err)
+
+	equals(t, rp.Owner, repo.Owner)
+	equals(t, rp.Name, repo.Name)
+	assert(t, rp.UpdatedAt.After(rp.CreatedAt), "updated_at should be updated and should have a timestamp after created_at")
+
+}
+
+func TestNewRepositoryStore_FindRepo(t *testing.T) {
+	dir, err := ioutil.TempDir("", "starhook")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		os.RemoveAll(dir)
+	})
+
+	store, err := NewRepositoryStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	repo := &internal.Repository{
+		Owner: "fatih",
+		Name:  "vim-go",
+	}
+
+	ctx := context.Background()
+	id, err := store.CreateRepo(ctx, repo)
+	ok(t, err)
+
+	rp, err := store.FindRepo(ctx, id)
+	ok(t, err)
+	equals(t, rp.Owner, repo.Owner)
+	equals(t, rp.Name, repo.Name)
+	assert(t, !rp.CreatedAt.IsZero(), "created_at should be not zero")
+	assert(t, !rp.UpdatedAt.IsZero(), "updated_at should be not zero")
+}
+
 // assert fails the test if the condition is false.
 func assert(tb testing.TB, condition bool, msg string, v ...interface{}) {
 	if !condition {
@@ -98,11 +297,11 @@ func ok(tb testing.TB, err error) {
 	}
 }
 
-// equals fails the test if exp is not equal to act.
-func equals(tb testing.TB, exp, act interface{}) {
-	if !reflect.DeepEqual(exp, act) {
+// equals fails the test if got is not equal to want.
+func equals(tb testing.TB, got, want interface{}) {
+	if !reflect.DeepEqual(got, want) {
 		_, file, line, _ := runtime.Caller(1)
-		fmt.Printf("\033[31m%s:%d:\n\n\texp: %#v\n\n\tgot: %#v\033[39m\n\n", filepath.Base(file), line, exp, act)
+		fmt.Printf("\033[31m%s:%d:\n\n\texp: %#v\n\n\tgot: %#v\033[39m\n\n", filepath.Base(file), line, got, want)
 		tb.FailNow()
 	}
 }
