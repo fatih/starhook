@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fatih/starhook/internal"
 	"github.com/fatih/starhook/internal/gh"
 	"github.com/fatih/starhook/internal/git"
 
@@ -25,6 +26,7 @@ type Client struct {
 	dir    string
 	query  string
 	update bool
+	store  internal.RepositoryStore
 }
 
 func NewClient(ghClient *gh.Client, dir, query string, update bool) *Client {
