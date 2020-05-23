@@ -150,7 +150,7 @@ func (r *RepositoryStore) CreateRepo(ctx context.Context, repo *internal.Reposit
 	return repo.ID, nil
 }
 
-func (r *RepositoryStore) UpdateRepo(ctx context.Context, repoID int64, upd internal.RepositoryUpdate) error {
+func (r *RepositoryStore) UpdateRepo(ctx context.Context, by internal.RepositoryBy, upd internal.RepositoryUpdate) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -165,11 +165,32 @@ func (r *RepositoryStore) UpdateRepo(ctx context.Context, repoID int64, upd inte
 		return err
 	}
 
-	for i, repo := range db.Repositories {
-		if repo.ID == repoID {
-			repo.UpdatedAt = time.Now()
-			db.Repositories[i] = repo
+	updatable := func(repo *internal.Repository) bool {
+		if by.Name != nil && *by.Name == repo.Name {
+			return true
 		}
+		if by.RepoID != nil && *by.RepoID == repo.ID {
+			return true
+		}
+
+		return false
+	}
+
+	for i, repo := range db.Repositories {
+		if !updatable(repo) {
+			continue
+		}
+
+		if upd.Nwo != nil {
+			repo.Nwo = *upd.Nwo
+		}
+
+		if upd.Owner != nil {
+			repo.Owner = *upd.Owner
+		}
+
+		repo.UpdatedAt = time.Now().UTC()
+		db.Repositories[i] = repo
 	}
 
 	out, err := json.MarshalIndent(&db, " ", "  ")

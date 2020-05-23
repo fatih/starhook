@@ -36,7 +36,7 @@ func NewService(ghClient *gh.Client, store internal.RepositoryStore, dir string)
 
 // FetchRepos fetches and clones all the repositories.
 func (s *Service) FetchRepos(ctx context.Context, query string) error {
-	fmt.Println("==> searching and fetching repositories")
+	fmt.Println("==> fetching repositories")
 	start := time.Now()
 
 	ghRepos, err := s.gh.FetchRepos(ctx, query)
@@ -63,7 +63,35 @@ func (s *Service) FetchRepos(ctx context.Context, query string) error {
 }
 
 func (s *Service) UpdateRepos(ctx context.Context, query string) error {
-	return errors.New("update repos is not supported")
+	fmt.Println("==> updating repositories")
+	start := time.Now()
+
+	ghRepos, err := s.gh.FetchRepos(ctx, query)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("==> repos.json found: %d repositores (elapsed time: %s)\n",
+		len(ghRepos), time.Since(start).String())
+
+	repos := toRepos(ghRepos)
+
+	for _, repo := range repos {
+		err := s.store.UpdateRepo(ctx,
+			internal.RepositoryBy{
+				Name: &repo.Name,
+			},
+			internal.RepositoryUpdate{
+				Nwo:   &repo.Nwo,
+				Owner: &repo.Owner,
+			},
+		)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (s *Service) updateRepo(ctx context.Context, repo github.Repository) error {
@@ -151,12 +179,13 @@ func (s *Service) cloneRepo(ctx context.Context, repo github.Repository) error {
 func toRepos(rps []github.Repository) []*internal.Repository {
 	repos := make([]*internal.Repository, 0, len(rps))
 	for _, repo := range rps {
-
-		fmt.Printf("repo.GetOwner() = %+v\n", repo.GetOwner().GetLogin())
+		owner := repo.GetOwner().GetLogin()
+		name := repo.GetName()
 
 		repos = append(repos, &internal.Repository{
-			Owner:           repo.GetOwner().GetLogin(),
-			Name:            repo.GetName(),
+			Nwo:             fmt.Sprintf("%s/%s", owner, name),
+			Owner:           owner,
+			Name:            name,
 			Branch:          repo.GetDefaultBranch(),
 			BranchUpdatedAt: time.Time{}, // TODO(fatih): fix this
 		})

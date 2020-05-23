@@ -12,6 +12,7 @@ var ErrNotFound = errors.New("not found")
 // Repository represents a repository on GitHub
 type Repository struct {
 	ID              int64
+	Nwo             string // name with owner
 	Owner           string // i.e: fatih, github
 	Name            string // i.e: vim-go, gh-ost
 	Branch          string // usually it's master, but people can change it
@@ -23,7 +24,15 @@ type Repository struct {
 
 type RepositoryFilter struct{}
 
-type RepositoryUpdate struct{}
+type RepositoryUpdate struct {
+	Nwo   *string
+	Owner *string
+}
+
+type RepositoryBy struct {
+	RepoID *int64
+	Name   *string
+}
 
 type RepositoryService interface {
 	// FetchRepos fetches all repositories for the given query
@@ -43,8 +52,8 @@ type RepositoryStore interface {
 	// CreateRepository creates a single repository and returns the ID.
 	CreateRepo(context.Context, *Repository) (int64, error)
 
-	// UpdateRepo creates a single repository
-	UpdateRepo(ctx context.Context, repoID int64, upd RepositoryUpdate) error
+	// UpdateRepo updates a single repository
+	UpdateRepo(ctx context.Context, by RepositoryBy, upd RepositoryUpdate) error
 }
 
 // DefaultFindOptions is the default option to be used with Find* methods
