@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/fatih/starhook/internal/gh"
+	"github.com/fatih/starhook/internal/jsonstore"
 	"github.com/fatih/starhook/internal/starhook"
 )
 
@@ -24,6 +25,7 @@ func realMain() error {
 		dir    = flag.String("dir", "repos", "path to download the repositories")
 		query  = flag.String("query", "org:github language:go", "query to fetch")
 		update = flag.Bool("update", false, "update the repositores to latest HEAD")
+		fetch  = flag.Bool("fetch", false, "fetch the repositores for the given query")
 	)
 	flag.Parse()
 
@@ -33,8 +35,20 @@ func realMain() error {
 
 	ctx := context.Background()
 	ghClient := gh.NewClient(ctx, *token)
+	store, err := jsonstore.NewRepositoryStore(*dir)
+	if err != nil {
+		return err
+	}
 
-	sh := starhook.NewClient(ghClient, *dir, *query, *update)
+	svc := starhook.NewService(ghClient, store, *dir)
 
-	return sh.Run(ctx)
+	if *fetch {
+		return svc.FetchRepos(ctx, *query)
+	}
+
+	if *update {
+		return svc.UpdateRepos(ctx, *query)
+	}
+
+	return nil
 }

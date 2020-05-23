@@ -3,6 +3,7 @@ package jsonstore
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -32,7 +33,11 @@ func NewRepositoryStore(dir string) (*RepositoryStore, error) {
 }
 
 func newRepositoryStore(dir string, nowFn func() time.Time) (*RepositoryStore, error) {
-	reposfile := filepath.Join(dir, "repos.json")
+	if _, err := os.Stat(dir); err != nil {
+		return nil, fmt.Errorf("dir %q does not exist", err)
+	}
+
+	reposfile := filepath.Join(dir, dbFile)
 
 	// check if the file exists
 	_, err := ioutil.ReadFile(reposfile)
@@ -63,7 +68,7 @@ func newRepositoryStore(dir string, nowFn func() time.Time) (*RepositoryStore, e
 	}, nil
 }
 
-func (r *RepositoryStore) FindRepos(ctx context.Context) ([]*internal.Repository, error) {
+func (r *RepositoryStore) FindRepos(ctx context.Context, filter internal.RepositoryFilter, opt internal.FindOptions) ([]*internal.Repository, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 

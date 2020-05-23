@@ -207,7 +207,7 @@ func TestNewRepositoryStore_FindRepos(t *testing.T) {
 	_, err = store.CreateRepo(ctx, repo)
 	ok(t, err)
 
-	repos, err := store.FindRepos(ctx)
+	repos, err := store.FindRepos(ctx, internal.RepositoryFilter{}, internal.DefaultFindOptions)
 	ok(t, err)
 
 	equals(t, len(repos), 3)
