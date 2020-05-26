@@ -21,12 +21,12 @@ func main() {
 
 func realMain() error {
 	var (
-		token  = flag.String("token", "", "github token, i.e: GITHUB_TOKEN")
-		dir    = flag.String("dir", "repos", "path to download the repositories")
-		query  = flag.String("query", "org:github language:go", "query to fetch")
-		update = flag.Bool("update", false, "update the repositores to latest HEAD")
-		fetch  = flag.Bool("fetch", false, "fetch the repositores for the given query")
-		list   = flag.Bool("list", false, "list the repositores for the given query")
+		token = flag.String("token", "", "github token, i.e: GITHUB_TOKEN")
+		dir   = flag.String("dir", "repos", "path to download the repositories")
+		query = flag.String("query", "org:github language:go", "query to fetch")
+		sync  = flag.Bool("sync", false, "sync the repositores to the given query")
+		fetch = flag.Bool("fetch", false, "fetch the repositores for the given query")
+		list  = flag.Bool("list", false, "list the repositores for the given query")
 	)
 	flag.Parse()
 
@@ -47,13 +47,13 @@ func realMain() error {
 		return svc.FetchRepos(ctx, *query)
 	}
 
-	if *update {
-		return svc.UpdateRepos(ctx, *query)
+	if *sync {
+		return svc.SyncRepos(ctx, *query)
 	}
 
 	if *list {
 		return svc.ListRepos(ctx, *query)
 	}
 
-	return errors.New("please provide an option: -fetch, -update or -list")
+	return errors.New("please provide an option: -fetch, -sync or -list")
 }

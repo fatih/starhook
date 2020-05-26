@@ -106,9 +106,9 @@ func (s *Service) FetchRepos(ctx context.Context, query string) error {
 	return nil
 }
 
-// UpdateRepos updates and syncs the remote repositories metadata with the store data.
-func (s *Service) UpdateRepos(ctx context.Context, query string) error {
-	fmt.Println("==> updating repositories")
+// SyncRepos syncs the remote repositories metadata with the store data.
+func (s *Service) SyncRepos(ctx context.Context, query string) error {
+	fmt.Println("==> syncing repositories")
 	repos, err := s.store.FindRepos(ctx, internal.RepositoryFilter{}, internal.DefaultFindOptions)
 	if err != nil {
 		return err
@@ -126,7 +126,7 @@ func (s *Service) UpdateRepos(ctx context.Context, query string) error {
 	}
 	fetchedRepos := toRepos(ghRepos)
 
-	fmt.Printf("==> queried: %d repositories (elapsed time: %s)\n",
+	fmt.Printf("==> queried %d repositories (elapsed time: %s)\n",
 		len(fetchedRepos), time.Since(start).String())
 
 	start = time.Now()
@@ -175,18 +175,27 @@ func (s *Service) UpdateRepos(ctx context.Context, query string) error {
 			res := result{}
 			localRepo, ok := localRepos[repo.Nwo]
 			if !ok {
-				// repo does not exist, create it
+				fmt.Printf("  %q is created\n", repo.Name)
 				_, err = s.store.CreateRepo(ctx, repo)
 				if err != nil {
 					return err
 				}
 				res.created = true
-			} else {
-				updated, err := s.updateRepo(ctx, localRepo, repo)
+			} else if !localRepo.BranchUpdatedAt.Equal(repo.BranchUpdatedAt) {
+				fmt.Printf("  %q is updated (last updated: %s)\n",
+					repo.Name, humanize.Time(localRepo.BranchUpdatedAt))
+				err = s.store.UpdateRepo(ctx,
+					internal.RepositoryBy{
+						Name: &repo.Name,
+					},
+					internal.RepositoryUpdate{
+						BranchUpdatedAt: &repo.BranchUpdatedAt,
+					},
+				)
 				if err != nil {
 					return err
 				}
-				res.updated = updated
+				res.updated = true
 			}
 
 			select {
@@ -223,31 +232,6 @@ func (s *Service) UpdateRepos(ctx context.Context, query string) error {
 	}
 
 	return nil
-}
-
-func (s *Service) syncRepo(ctx context.Context, localRepo, repo *internal.Repository) (*result, error) {
-	return nil, nil
-}
-
-func (s *Service) updateRepo(ctx context.Context, localRepo, repo *internal.Repository) (updated bool, err error) {
-	if localRepo.BranchUpdatedAt.Equal(repo.BranchUpdatedAt) {
-		return false, nil // nothing to do
-	}
-
-	fmt.Printf("  %q is updated (last updated: %s)\n", repo.Name, humanize.Time(localRepo.BranchUpdatedAt))
-	err = s.store.UpdateRepo(ctx,
-		internal.RepositoryBy{
-			Name: &repo.Name,
-		},
-		internal.RepositoryUpdate{
-			BranchUpdatedAt: &repo.BranchUpdatedAt,
-		},
-	)
-	if err != nil {
-		return false, err
-	}
-
-	return true, nil
 }
 
 func (s *Service) updateGitRepo(ctx context.Context, repo github.Repository) error {
@@ -339,11 +323,10 @@ func toRepos(rps []github.Repository) []*internal.Repository {
 		name := repo.GetName()
 
 		repos = append(repos, &internal.Repository{
-			Nwo:             fmt.Sprintf("%s/%s", owner, name),
-			Owner:           owner,
-			Name:            name,
-			Branch:          repo.GetDefaultBranch(),
-			BranchUpdatedAt: time.Time{}, // TODO(fatih): fix this
+			Nwo:    fmt.Sprintf("%s/%s", owner, name),
+			Owner:  owner,
+			Name:   name,
+			Branch: repo.GetDefaultBranch(),
 		})
 	}
 
