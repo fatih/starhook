@@ -62,7 +62,6 @@ func (s *Service) ListRepos(ctx context.Context, query string) error {
 	}
 
 	fmt.Printf("==> local %d repositories (last updated: %s)\n", len(repos), humanize.Time(lastUpdated))
-
 	<-done
 
 	return nil
@@ -102,6 +101,7 @@ func (s *Service) FetchRepos(ctx context.Context, query string) error {
 	return nil
 }
 
+// UpdateRepos updates and syncs the remote repositories metadata with the store data.
 func (s *Service) UpdateRepos(ctx context.Context, query string) error {
 	fmt.Println("==> updating repositories")
 
@@ -126,46 +126,63 @@ func (s *Service) UpdateRepos(ctx context.Context, query string) error {
 		len(fetchedRepos), time.Since(start).String())
 
 	start = time.Now()
+	g, ctx := errgroup.WithContext(ctx)
+
+	type result struct {
+		updated bool
+	}
+
+	const maxWorkers = 5
+	sem := semaphore.NewWeighted(maxWorkers)
+
+	ch := make(chan result)
+
 	totalUpdated := 0
-	for i, repo := range fetchedRepos {
-		localRepo, ok := localRepos[repo.Nwo]
-		if !ok {
-			// repo doesn't exist locally, clone it
-			// TODO(arslan): git clone the repo
-		} else {
-			// repo exist. Check if it's outdated
-			// NOTE(fatih): there is the possibility that the default branch
-			// might have changed, for now we assume that's not the case, but
-			// it's worth noting here.
-			updatedAt, err := s.gh.BranchTime(ctx, repo.Owner, repo.Name, repo.Branch)
-			if err != nil {
-				return err
-			}
-			repo.BranchUpdatedAt = updatedAt
-			fetchedRepos[i] = repo
-
-			if localRepo.BranchUpdatedAt.Equal(updatedAt) {
-				continue // nothing to do
-			}
-
-			totalUpdated++
-			if localRepo.BranchUpdatedAt.Before(updatedAt) {
-				fmt.Printf("  %q is updated (last updated: %s)", repo.Name, localRepo.BranchUpdatedAt)
-			}
-
-			// TODO(arslan): git checkout the repo
-			err = s.store.UpdateRepo(ctx,
-				internal.RepositoryBy{
-					Name: &repo.Name,
-				},
-				internal.RepositoryUpdate{
-					BranchUpdatedAt: &updatedAt,
-				},
-			)
-			if err != nil {
-				return err
+	go func() {
+		for r := range ch {
+			if r.updated {
+				totalUpdated++
 			}
 		}
+	}()
+
+	for _, repo := range fetchedRepos {
+		repo := repo
+		localRepo, ok := localRepos[repo.Nwo]
+		if !ok {
+			continue
+		}
+
+		if err := sem.Acquire(ctx, 1); err != nil {
+			fmt.Printf("acquire err = %+v\n", err)
+			break
+		}
+
+		g.Go(func() error {
+			defer sem.Release(1)
+
+			updated, err := s.updateRepo(ctx, localRepo, repo)
+			if err != nil {
+				return err
+			}
+
+			select {
+			case ch <- result{updated: updated}:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+
+			return nil
+		})
+	}
+
+	// Check whether any of the goroutines failed. Since g is accumulating the
+	// errors, we don't need to send them (or check for them) in the individual
+	// results sent on the channel.
+	err = g.Wait()
+	close(ch)
+	if err != nil {
+		return err
 	}
 
 	if totalUpdated == 0 {
@@ -178,7 +195,39 @@ func (s *Service) UpdateRepos(ctx context.Context, query string) error {
 	return nil
 }
 
-func (s *Service) updateRepo(ctx context.Context, repo github.Repository) error {
+func (s *Service) updateRepo(ctx context.Context, localRepo, repo *internal.Repository) (updated bool, err error) {
+	// NOTE(fatih): there is the possibility that the default branch
+	// might have changed, for now we assume that's not the case, but
+	// it's worth noting here.
+	updatedAt, err := s.gh.BranchTime(ctx, repo.Owner, repo.Name, repo.Branch)
+	if err != nil {
+		return false, err
+	}
+
+	if localRepo.BranchUpdatedAt.Equal(updatedAt) {
+		return false, nil // nothing to do
+	}
+
+	if localRepo.BranchUpdatedAt.Before(updatedAt) {
+		fmt.Printf("  %q is updated (last updated: %s)\n", repo.Name, humanize.Time(localRepo.BranchUpdatedAt))
+	}
+
+	// err = s.store.UpdateRepo(ctx,
+	// 	internal.RepositoryBy{
+	// 		Name: &repo.Name,
+	// 	},
+	// 	internal.RepositoryUpdate{
+	// 		BranchUpdatedAt: &updatedAt,
+	// 	},
+	// )
+	// if err != nil {
+	// 	return false, err
+	// }
+
+	return true, nil
+}
+
+func (s *Service) updateGitRepo(ctx context.Context, repo github.Repository) error {
 	fmt.Printf("  updating %s\n", repo.GetName())
 	repoDir := filepath.Join(s.dir, repo.GetName())
 	g := &git.Client{Dir: repoDir}
