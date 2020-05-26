@@ -197,6 +197,8 @@ func (r *RepositoryStore) UpdateRepo(ctx context.Context, by internal.Repository
 		db.Repositories[i] = repo
 	}
 
+	db.UpdatedAt = time.Now().UTC()
+
 	out, err := json.MarshalIndent(&db, " ", "  ")
 	if err != nil {
 		return err
