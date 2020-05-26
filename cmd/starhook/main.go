@@ -26,6 +26,7 @@ func realMain() error {
 		query  = flag.String("query", "org:github language:go", "query to fetch")
 		update = flag.Bool("update", false, "update the repositores to latest HEAD")
 		fetch  = flag.Bool("fetch", false, "fetch the repositores for the given query")
+		list   = flag.Bool("list", false, "list the repositores for the given query")
 	)
 	flag.Parse()
 
@@ -50,5 +51,9 @@ func realMain() error {
 		return svc.UpdateRepos(ctx, *query)
 	}
 
-	return nil
+	if *list {
+		return svc.ListRepos(ctx, *query)
+	}
+
+	return errors.New("please provide an option: -fetch, -update or -list")
 }

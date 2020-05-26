@@ -19,8 +19,6 @@ var _ internal.RepositoryStore = (*RepositoryStore)(nil)
 
 type internalDB struct {
 	Repositories []*internal.Repository `json:"repositories"`
-	CreatedAt    time.Time              `json:"created_at"`
-	UpdatedAt    time.Time              `json:"updated_at"`
 }
 
 type RepositoryStore struct {
@@ -29,10 +27,6 @@ type RepositoryStore struct {
 }
 
 func NewRepositoryStore(dir string) (*RepositoryStore, error) {
-	return newRepositoryStore(dir, time.Now().UTC)
-}
-
-func newRepositoryStore(dir string, nowFn func() time.Time) (*RepositoryStore, error) {
 	if _, err := os.Stat(dir); err != nil {
 		return nil, fmt.Errorf("dir %q does not exist", err)
 	}
@@ -47,11 +41,7 @@ func newRepositoryStore(dir string, nowFn func() time.Time) (*RepositoryStore, e
 
 	// if not, create a new one
 	if os.IsNotExist(err) {
-		now := nowFn()
-		db := internalDB{
-			CreatedAt: now,
-			UpdatedAt: now,
-		}
+		db := internalDB{}
 
 		out, err := json.MarshalIndent(&db, " ", "  ")
 		if err != nil {
@@ -136,7 +126,6 @@ func (r *RepositoryStore) CreateRepo(ctx context.Context, repo *internal.Reposit
 	repo.UpdatedAt = now
 
 	db.Repositories = append(db.Repositories, repo)
-	db.UpdatedAt = now
 
 	out, err := json.MarshalIndent(&db, " ", "  ")
 	if err != nil {
@@ -196,8 +185,6 @@ func (r *RepositoryStore) UpdateRepo(ctx context.Context, by internal.Repository
 		repo.UpdatedAt = time.Now().UTC()
 		db.Repositories[i] = repo
 	}
-
-	db.UpdatedAt = time.Now().UTC()
 
 	out, err := json.MarshalIndent(&db, " ", "  ")
 	if err != nil {

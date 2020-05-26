@@ -10,7 +10,6 @@ import (
 	"reflect"
 	"runtime"
 	"testing"
-	"time"
 
 	"github.com/fatih/starhook/internal"
 )
@@ -24,10 +23,7 @@ func TestNewRepositoryStore_newFile(t *testing.T) {
 		os.RemoveAll(dir)
 	})
 
-	nowFn := func() time.Time {
-		return time.Date(2020, 03, 11, 0, 0, 0, 0, time.UTC)
-	}
-	store, err := newRepositoryStore(dir, nowFn)
+	store, err := NewRepositoryStore(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,8 +40,6 @@ func TestNewRepositoryStore_newFile(t *testing.T) {
 	}
 
 	equals(t, len(db.Repositories), 0)
-	equals(t, db.CreatedAt, nowFn())
-	equals(t, db.UpdatedAt, nowFn())
 }
 
 func TestNewRepositoryStore_existingFile(t *testing.T) {
@@ -126,9 +120,6 @@ func TestNewRepositoryStore_CreateRepo(t *testing.T) {
 
 	// the number of repos should be one
 	equals(t, len(db.Repositories), 1)
-
-	// db.UpdatedAt should be refreshed as well
-	assert(t, db.UpdatedAt.After(db.CreatedAt), "updated_at should be updated and should have a timestamp after created_at")
 }
 
 func TestNewRepositoryStore_CreateRepo_multiple(t *testing.T) {
@@ -236,7 +227,7 @@ func TestNewRepositoryStore_UpdateRepo(t *testing.T) {
 	id, err := store.CreateRepo(ctx, repo)
 	ok(t, err)
 
-	err = store.UpdateRepo(ctx, id, internal.RepositoryUpdate{})
+	err = store.UpdateRepo(ctx, internal.RepositoryBy{RepoID: &id}, internal.RepositoryUpdate{})
 	ok(t, err)
 
 	rp, err := store.FindRepo(ctx, id)

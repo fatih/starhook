@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/fatih/starhook/internal"
 	"github.com/fatih/starhook/internal/gh"
 	"github.com/fatih/starhook/internal/git"
@@ -34,6 +36,38 @@ func NewService(ghClient *gh.Client, store internal.RepositoryStore, dir string)
 	}
 }
 
+// ListRepos lists all the repositories.
+func (s *Service) ListRepos(ctx context.Context, query string) error {
+	done := make(chan bool, 0)
+	go func() {
+		ghRepos, err := s.gh.FetchRepos(ctx, query)
+		if err != nil {
+			log.Printf("ERROR: fetching repositories has failed: %v\n", err)
+		}
+
+		fmt.Printf("==> remote %d repositories\n", len(ghRepos))
+		close(done)
+	}()
+
+	repos, err := s.store.FindRepos(ctx, internal.RepositoryFilter{}, internal.DefaultFindOptions)
+	if err != nil {
+		return err
+	}
+
+	lastUpdated := time.Time{}
+	for _, repo := range repos {
+		if repo.UpdatedAt.After(lastUpdated) {
+			lastUpdated = repo.UpdatedAt
+		}
+	}
+
+	fmt.Printf("==> local %d repositories (last updated: %s)\n", len(repos), humanize.Time(lastUpdated))
+
+	<-done
+
+	return nil
+}
+
 // FetchRepos fetches and clones all the repositories.
 func (s *Service) FetchRepos(ctx context.Context, query string) error {
 	fmt.Println("==> fetching repositories")
@@ -53,7 +87,13 @@ func (s *Service) FetchRepos(ctx context.Context, query string) error {
 
 	repos := toRepos(ghRepos)
 	for _, repo := range repos {
-		_, err := s.store.CreateRepo(ctx, repo)
+		updatedAt, err := s.gh.BranchTime(ctx, repo.Owner, repo.Name, repo.Branch)
+		if err != nil {
+			return err
+		}
+		repo.BranchUpdatedAt = updatedAt
+
+		_, err = s.store.CreateRepo(ctx, repo)
 		if err != nil {
 			return err
 		}
@@ -70,26 +110,33 @@ func (s *Service) UpdateRepos(ctx context.Context, query string) error {
 	if err != nil {
 		return err
 	}
-
-	fmt.Printf("==> repos.json found: %d repositores (elapsed time: %s)\n",
-		len(ghRepos), time.Since(start).String())
-
 	repos := toRepos(ghRepos)
 
+	fmt.Printf("==> queried: %d repositores (elapsed time: %s)\n",
+		len(repos), time.Since(start).String())
+
+	start = time.Now()
 	for _, repo := range repos {
-		err := s.store.UpdateRepo(ctx,
+		updatedAt, err := s.gh.BranchTime(ctx, repo.Owner, repo.Name, repo.Branch)
+		if err != nil {
+			return err
+		}
+
+		err = s.store.UpdateRepo(ctx,
 			internal.RepositoryBy{
 				Name: &repo.Name,
 			},
 			internal.RepositoryUpdate{
-				Nwo:   &repo.Nwo,
-				Owner: &repo.Owner,
+				BranchUpdatedAt: &updatedAt,
 			},
 		)
 		if err != nil {
 			return err
 		}
 	}
+
+	fmt.Printf("==> updated: %d repositores (elapsed time: %s)\n",
+		len(repos), time.Since(start).String())
 
 	return nil
 }
