@@ -25,8 +25,9 @@ type Repository struct {
 type RepositoryFilter struct{}
 
 type RepositoryUpdate struct {
-	Nwo   *string
-	Owner *string
+	Nwo             *string
+	Owner           *string
+	BranchUpdatedAt *time.Time
 }
 
 type RepositoryBy struct {
@@ -40,6 +41,9 @@ type RepositoryService interface {
 
 	// UpdateRepos updates all the repositories for the given query
 	UpdateRepos(ctx context.Context, query string) ([]*Repository, error)
+
+	// ListRepos lists all the repositories for the given query
+	ListRepos(ctx context.Context, query string) ([]*Repository, error)
 }
 
 type RepositoryStore interface {

@@ -189,6 +189,10 @@ func (r *RepositoryStore) UpdateRepo(ctx context.Context, by internal.Repository
 			repo.Owner = *upd.Owner
 		}
 
+		if upd.BranchUpdatedAt != nil {
+			repo.BranchUpdatedAt = *upd.BranchUpdatedAt
+		}
+
 		repo.UpdatedAt = time.Now().UTC()
 		db.Repositories[i] = repo
 	}

@@ -2,6 +2,7 @@ package gh
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/go-github/v28/github"
 	"golang.org/x/oauth2"
@@ -12,9 +13,15 @@ type searchService interface {
 	Repositories(ctx context.Context, query string, opt *github.SearchOptions) (*github.RepositoriesSearchResult, *github.Response, error)
 }
 
+type repositoryService interface {
+	// GetBranch gets the specified branch for a repository.
+	GetBranch(ctx context.Context, owner, repo, branch string) (*github.Branch, *github.Response, error)
+}
+
 // Client is responsible of searching and cloning the repositories
 type Client struct {
-	Search searchService
+	Search       searchService
+	Repositories repositoryService
 }
 
 func NewClient(ctx context.Context, token string) *Client {
@@ -26,13 +33,13 @@ func NewClient(ctx context.Context, token string) *Client {
 	ghClient := github.NewClient(tc)
 
 	return &Client{
-		Search: ghClient.Search,
+		Search:       ghClient.Search,
+		Repositories: ghClient.Repositories,
 	}
 }
 
 // FetchRepos fetches the repositories for the given query
 func (c *Client) FetchRepos(ctx context.Context, query string) ([]github.Repository, error) {
-
 	opts := &github.SearchOptions{
 		ListOptions: github.ListOptions{PerPage: 50},
 		Sort:        "updated",
@@ -55,4 +62,13 @@ func (c *Client) FetchRepos(ctx context.Context, query string) ([]github.Reposit
 	}
 
 	return repos, nil
+}
+
+func (c *Client) BranchTime(ctx context.Context, owner, name, branch string) (time.Time, error) {
+	res, _, err := c.Repositories.GetBranch(ctx, owner, name, branch)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	return res.GetCommit().GetCommit().GetCommitter().GetDate(), nil
 }
