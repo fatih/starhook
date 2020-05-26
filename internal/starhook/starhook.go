@@ -78,7 +78,7 @@ func (s *Service) FetchRepos(ctx context.Context, query string) error {
 		return err
 	}
 
-	fmt.Printf("==> repos.json found: %d repositores (elapsed time: %s)\n",
+	fmt.Printf("==> found: %d repositories (elapsed time: %s)\n",
 		len(ghRepos), time.Since(start).String())
 
 	if err := s.cloneRepos(ctx, ghRepos); err != nil {
@@ -104,39 +104,76 @@ func (s *Service) FetchRepos(ctx context.Context, query string) error {
 
 func (s *Service) UpdateRepos(ctx context.Context, query string) error {
 	fmt.Println("==> updating repositories")
-	start := time.Now()
 
+	repos, err := s.store.FindRepos(ctx, internal.RepositoryFilter{}, internal.DefaultFindOptions)
+	if err != nil {
+		return err
+	}
+
+	localRepos := make(map[string]*internal.Repository, len(repos))
+	for _, repo := range repos {
+		localRepos[repo.Nwo] = repo
+	}
+
+	start := time.Now()
 	ghRepos, err := s.gh.FetchRepos(ctx, query)
 	if err != nil {
 		return err
 	}
-	repos := toRepos(ghRepos)
+	fetchedRepos := toRepos(ghRepos)
 
-	fmt.Printf("==> queried: %d repositores (elapsed time: %s)\n",
-		len(repos), time.Since(start).String())
+	fmt.Printf("==> queried: %d repositories (elapsed time: %s)\n",
+		len(fetchedRepos), time.Since(start).String())
 
 	start = time.Now()
-	for _, repo := range repos {
-		updatedAt, err := s.gh.BranchTime(ctx, repo.Owner, repo.Name, repo.Branch)
-		if err != nil {
-			return err
-		}
+	totalUpdated := 0
+	for i, repo := range fetchedRepos {
+		localRepo, ok := localRepos[repo.Nwo]
+		if !ok {
+			// repo doesn't exist locally, clone it
+			// TODO(arslan): git clone the repo
+		} else {
+			// repo exist. Check if it's outdated
+			// NOTE(fatih): there is the possibility that the default branch
+			// might have changed, for now we assume that's not the case, but
+			// it's worth noting here.
+			updatedAt, err := s.gh.BranchTime(ctx, repo.Owner, repo.Name, repo.Branch)
+			if err != nil {
+				return err
+			}
+			repo.BranchUpdatedAt = updatedAt
+			fetchedRepos[i] = repo
 
-		err = s.store.UpdateRepo(ctx,
-			internal.RepositoryBy{
-				Name: &repo.Name,
-			},
-			internal.RepositoryUpdate{
-				BranchUpdatedAt: &updatedAt,
-			},
-		)
-		if err != nil {
-			return err
+			if localRepo.BranchUpdatedAt.Equal(updatedAt) {
+				continue // nothing to do
+			}
+
+			totalUpdated++
+			if localRepo.BranchUpdatedAt.Before(updatedAt) {
+				fmt.Printf("  %q is updated (last updated: %s)", repo.Name, localRepo.BranchUpdatedAt)
+			}
+
+			// TODO(arslan): git checkout the repo
+			err = s.store.UpdateRepo(ctx,
+				internal.RepositoryBy{
+					Name: &repo.Name,
+				},
+				internal.RepositoryUpdate{
+					BranchUpdatedAt: &updatedAt,
+				},
+			)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
-	fmt.Printf("==> updated: %d repositores (elapsed time: %s)\n",
-		len(repos), time.Since(start).String())
+	if totalUpdated == 0 {
+		fmt.Printf("==> everything is up-to-date (elapsed time: %s)\n", time.Since(start).String())
+	} else {
+		fmt.Printf("==> updated: %d repositories (elapsed time: %s)\n",
+			totalUpdated, time.Since(start).String())
+	}
 
 	return nil
 }
@@ -200,7 +237,7 @@ func (s *Service) cloneRepos(ctx context.Context, repos []github.Repository) err
 		fmt.Printf("g.Wait() err = %+v\n", err)
 	}
 
-	fmt.Printf("==> cloned: %d repositores (elapsed time: %s)\n",
+	fmt.Printf("==> cloned: %d repositories (elapsed time: %s)\n",
 		len(repos), time.Since(start).String())
 	return nil
 }
@@ -273,7 +310,7 @@ func toRepos(rps []github.Repository) []*internal.Repository {
 // 			return err
 // 		}
 
-// 		fmt.Printf("==> repos.json found: %d repositores (elapsed time: %s)\n",
+// 		fmt.Printf("==> repos.json found: %d repositories (elapsed time: %s)\n",
 // 			len(repos), time.Since(start).String())
 
 // 	}
