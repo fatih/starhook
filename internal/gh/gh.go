@@ -42,7 +42,6 @@ func NewClient(ctx context.Context, token string) *Client {
 func (c *Client) FetchRepos(ctx context.Context, query string) ([]github.Repository, error) {
 	opts := &github.SearchOptions{
 		ListOptions: github.ListOptions{PerPage: 50},
-		Sort:        "updated",
 	}
 
 	var repos []github.Repository

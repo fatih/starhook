@@ -21,6 +21,11 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
+type result struct {
+	updated bool
+	created bool
+}
+
 type Service struct {
 	gh     *gh.Client
 	dir    string
@@ -127,11 +132,6 @@ func (s *Service) UpdateRepos(ctx context.Context, query string) error {
 	start = time.Now()
 	g, ctx := errgroup.WithContext(ctx)
 
-	type result struct {
-		updated bool
-		created bool
-	}
-
 	const maxWorkers = 5
 	sem := semaphore.NewWeighted(maxWorkers)
 
@@ -225,8 +225,12 @@ func (s *Service) UpdateRepos(ctx context.Context, query string) error {
 	return nil
 }
 
+func (s *Service) syncRepo(ctx context.Context, localRepo, repo *internal.Repository) (*result, error) {
+	return nil, nil
+}
+
 func (s *Service) updateRepo(ctx context.Context, localRepo, repo *internal.Repository) (updated bool, err error) {
-	if localRepo.BranchUpdatedAt.Equal(repo.UpdatedAt) {
+	if localRepo.BranchUpdatedAt.Equal(repo.BranchUpdatedAt) {
 		return false, nil // nothing to do
 	}
 
@@ -236,7 +240,7 @@ func (s *Service) updateRepo(ctx context.Context, localRepo, repo *internal.Repo
 			Name: &repo.Name,
 		},
 		internal.RepositoryUpdate{
-			BranchUpdatedAt: &repo.UpdatedAt,
+			BranchUpdatedAt: &repo.BranchUpdatedAt,
 		},
 	)
 	if err != nil {
