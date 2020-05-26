@@ -104,7 +104,6 @@ func (s *Service) FetchRepos(ctx context.Context, query string) error {
 // UpdateRepos updates and syncs the remote repositories metadata with the store data.
 func (s *Service) UpdateRepos(ctx context.Context, query string) error {
 	fmt.Println("==> updating repositories")
-
 	repos, err := s.store.FindRepos(ctx, internal.RepositoryFilter{}, internal.DefaultFindOptions)
 	if err != nil {
 		return err
@@ -130,28 +129,31 @@ func (s *Service) UpdateRepos(ctx context.Context, query string) error {
 
 	type result struct {
 		updated bool
+		created bool
 	}
 
 	const maxWorkers = 5
 	sem := semaphore.NewWeighted(maxWorkers)
 
+	done := make(chan struct{})
 	ch := make(chan result)
 
-	totalUpdated := 0
+	updated := 0
+	created := 0
 	go func() {
 		for r := range ch {
 			if r.updated {
-				totalUpdated++
+				updated++
+			}
+			if r.created {
+				created++
 			}
 		}
+		close(done)
 	}()
 
 	for _, repo := range fetchedRepos {
 		repo := repo
-		localRepo, ok := localRepos[repo.Nwo]
-		if !ok {
-			continue
-		}
 
 		if err := sem.Acquire(ctx, 1); err != nil {
 			fmt.Printf("acquire err = %+v\n", err)
@@ -161,13 +163,34 @@ func (s *Service) UpdateRepos(ctx context.Context, query string) error {
 		g.Go(func() error {
 			defer sem.Release(1)
 
-			updated, err := s.updateRepo(ctx, localRepo, repo)
+			// NOTE(fatih): there is the possibility that the default branch
+			// might have changed, for now we assume that's not the case, but
+			// it's worth noting here.
+			updatedAt, err := s.gh.BranchTime(ctx, repo.Owner, repo.Name, repo.Branch)
 			if err != nil {
 				return err
 			}
+			repo.BranchUpdatedAt = updatedAt
+
+			res := result{}
+			localRepo, ok := localRepos[repo.Nwo]
+			if !ok {
+				// repo does not exist, create it
+				_, err = s.store.CreateRepo(ctx, repo)
+				if err != nil {
+					return err
+				}
+				res.created = true
+			} else {
+				updated, err := s.updateRepo(ctx, localRepo, repo)
+				if err != nil {
+					return err
+				}
+				res.updated = updated
+			}
 
 			select {
-			case ch <- result{updated: updated}:
+			case ch <- res:
 			case <-ctx.Done():
 				return ctx.Err()
 			}
@@ -184,45 +207,41 @@ func (s *Service) UpdateRepos(ctx context.Context, query string) error {
 	if err != nil {
 		return err
 	}
+	<-done
 
-	if totalUpdated == 0 {
+	if updated == 0 && created == 0 {
 		fmt.Printf("==> everything is up-to-date (elapsed time: %s)\n", time.Since(start).String())
-	} else {
+	}
+
+	if updated != 0 {
 		fmt.Printf("==> updated: %d repositories (elapsed time: %s)\n",
-			totalUpdated, time.Since(start).String())
+			updated, time.Since(start).String())
+	}
+	if created != 0 {
+		fmt.Printf("==> created: %d repositories (elapsed time: %s)\n",
+			created, time.Since(start).String())
 	}
 
 	return nil
 }
 
 func (s *Service) updateRepo(ctx context.Context, localRepo, repo *internal.Repository) (updated bool, err error) {
-	// NOTE(fatih): there is the possibility that the default branch
-	// might have changed, for now we assume that's not the case, but
-	// it's worth noting here.
-	updatedAt, err := s.gh.BranchTime(ctx, repo.Owner, repo.Name, repo.Branch)
-	if err != nil {
-		return false, err
-	}
-
-	if localRepo.BranchUpdatedAt.Equal(updatedAt) {
+	if localRepo.BranchUpdatedAt.Equal(repo.UpdatedAt) {
 		return false, nil // nothing to do
 	}
 
-	if localRepo.BranchUpdatedAt.Before(updatedAt) {
-		fmt.Printf("  %q is updated (last updated: %s)\n", repo.Name, humanize.Time(localRepo.BranchUpdatedAt))
+	fmt.Printf("  %q is updated (last updated: %s)\n", repo.Name, humanize.Time(localRepo.BranchUpdatedAt))
+	err = s.store.UpdateRepo(ctx,
+		internal.RepositoryBy{
+			Name: &repo.Name,
+		},
+		internal.RepositoryUpdate{
+			BranchUpdatedAt: &repo.UpdatedAt,
+		},
+	)
+	if err != nil {
+		return false, err
 	}
-
-	// err = s.store.UpdateRepo(ctx,
-	// 	internal.RepositoryBy{
-	// 		Name: &repo.Name,
-	// 	},
-	// 	internal.RepositoryUpdate{
-	// 		BranchUpdatedAt: &updatedAt,
-	// 	},
-	// )
-	// if err != nil {
-	// 	return false, err
-	// }
 
 	return true, nil
 }
