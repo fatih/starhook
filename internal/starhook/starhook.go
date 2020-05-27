@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -43,17 +42,6 @@ func NewService(ghClient *gh.Client, store internal.RepositoryStore, dir string)
 
 // ListRepos lists all the repositories.
 func (s *Service) ListRepos(ctx context.Context, query string) error {
-	done := make(chan bool, 0)
-	go func() {
-		ghRepos, err := s.gh.FetchRepos(ctx, query)
-		if err != nil {
-			log.Printf("ERROR: fetching repositories has failed: %v\n", err)
-		}
-
-		fmt.Printf("==> remote %d repositories\n", len(ghRepos))
-		close(done)
-	}()
-
 	repos, err := s.store.FindRepos(ctx, internal.RepositoryFilter{}, internal.DefaultFindOptions)
 	if err != nil {
 		return err
@@ -66,41 +54,99 @@ func (s *Service) ListRepos(ctx context.Context, query string) error {
 		}
 	}
 
-	fmt.Printf("==> local %d repositories (last updated: %s)\n", len(repos), humanize.Time(lastUpdated))
-	<-done
-
+	fmt.Printf("==> local %d repositories (last synced: %s)\n", len(repos), humanize.Time(lastUpdated))
 	return nil
 }
 
-// FetchRepos fetches and clones all the repositories.
+// FetchRepos fetches and clones all the repositories.jk
 func (s *Service) FetchRepos(ctx context.Context, query string) error {
 	fmt.Println("==> fetching repositories")
 	start := time.Now()
 
-	ghRepos, err := s.gh.FetchRepos(ctx, query)
+	repos, err := s.store.FindRepos(ctx, internal.RepositoryFilter{}, internal.DefaultFindOptions)
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("==> found: %d repositories (elapsed time: %s)\n",
-		len(ghRepos), time.Since(start).String())
-
-	if err := s.cloneRepos(ctx, ghRepos); err != nil {
-		return err
+	if len(repos) == 0 {
+		return errors.New("no repositories to fetch, please sync first")
 	}
 
-	repos := toRepos(ghRepos)
+	lastUpdated := time.Time{}
 	for _, repo := range repos {
-		updatedAt, err := s.gh.BranchTime(ctx, repo.Owner, repo.Name, repo.Branch)
-		if err != nil {
-			return err
+		if repo.UpdatedAt.After(lastUpdated) {
+			lastUpdated = repo.UpdatedAt
 		}
-		repo.BranchUpdatedAt = updatedAt
+	}
 
-		_, err = s.store.CreateRepo(ctx, repo)
-		if err != nil {
+	fmt.Printf("==> have %d repositories. last synced: %s\n", len(repos), humanize.Time(lastUpdated))
+
+	if _, err := exec.LookPath("git"); err != nil {
+		// make sure that `git` exists before we continue
+		return errors.New("couldn't find 'git' in PATH")
+	}
+
+	var (
+		clone  []*internal.Repository
+		update []*internal.Repository
+	)
+
+	for _, repo := range repos {
+		if repo.SyncedAt.IsZero() {
+			clone = append(clone, repo)
+			continue
+		}
+
+		if repo.SyncedAt.Before(repo.BranchUpdatedAt) {
+			update = append(update, repo)
+		}
+
+	}
+
+	if len(clone) != 0 {
+		fmt.Println("==> cloning repositories")
+		if err := s.cloneRepos(ctx, clone); err != nil {
 			return err
 		}
+
+		for _, repo := range clone {
+			now := time.Now().UTC()
+			err = s.store.UpdateRepo(ctx,
+				internal.RepositoryBy{
+					Name: &repo.Name,
+				},
+				internal.RepositoryUpdate{
+					SyncedAt: &now,
+				},
+			)
+		}
+	}
+
+	if len(update) != 0 {
+		fmt.Println("==> updating repositories")
+		if err := s.updateRepos(ctx, update); err != nil {
+			return err
+		}
+
+		for _, repo := range update {
+			now := time.Now().UTC()
+			err = s.store.UpdateRepo(ctx,
+				internal.RepositoryBy{
+					Name: &repo.Name,
+				},
+				internal.RepositoryUpdate{
+					SyncedAt: &now,
+				},
+			)
+		}
+	}
+
+	if len(update) == 0 && len(clone) == 0 {
+		fmt.Printf("==> everything is up-to-date (elapsed time: %s)\n",
+			time.Since(start).String())
+	} else {
+		fmt.Printf("==> fetched and updated: %d repositories (elapsed time: %s)\n",
+			len(repos), time.Since(start).String())
 	}
 
 	return nil
@@ -234,9 +280,40 @@ func (s *Service) SyncRepos(ctx context.Context, query string) error {
 	return nil
 }
 
-func (s *Service) updateGitRepo(ctx context.Context, repo github.Repository) error {
-	fmt.Printf("  updating %s\n", repo.GetName())
-	repoDir := filepath.Join(s.dir, repo.GetName())
+func (s *Service) updateRepos(ctx context.Context, repos []*internal.Repository) error {
+	start := time.Now()
+
+	const maxWorkers = 10
+	sem := semaphore.NewWeighted(maxWorkers)
+
+	g, ctx := errgroup.WithContext(ctx)
+	for _, repo := range repos {
+		repo := repo
+
+		err := sem.Acquire(ctx, 1)
+		if err != nil {
+			fmt.Printf("acquire err = %+v\n", err)
+			break
+		}
+
+		g.Go(func() error {
+			defer sem.Release(1)
+			return s.updateGitRepo(ctx, repo)
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		fmt.Printf("g.Wait() err = %+v\n", err)
+	}
+
+	fmt.Printf("==> updated to HEAD: %d repositories (elapsed time: %s)\n",
+		len(repos), time.Since(start).String())
+	return nil
+}
+
+func (s *Service) updateGitRepo(ctx context.Context, repo *internal.Repository) error {
+	fmt.Printf("  updating %s\n", repo.Name)
+	repoDir := filepath.Join(s.dir, repo.Name)
 	g := &git.Client{Dir: repoDir}
 
 	if _, err := g.Run("reset", "--hard"); err != nil {
@@ -259,17 +336,9 @@ func (s *Service) updateGitRepo(ctx context.Context, repo github.Repository) err
 	return nil
 }
 
-func (s *Service) cloneRepos(ctx context.Context, repos []github.Repository) error {
-	if _, err := exec.LookPath("git"); err != nil {
-		// make sure that `git` exists before we continue
-		return errors.New("couldn't find 'git' in PATH")
-	}
-
-	fmt.Println("==> cloning repositories")
+func (s *Service) cloneRepos(ctx context.Context, repos []*internal.Repository) error {
 	start := time.Now()
 
-	// download at max 10 repos at the same time to not overload and burst the
-	// server. Also makes it easier
 	const maxWorkers = 10
 	sem := semaphore.NewWeighted(maxWorkers)
 
@@ -298,17 +367,18 @@ func (s *Service) cloneRepos(ctx context.Context, repos []github.Repository) err
 	return nil
 }
 
-func (s *Service) cloneRepo(ctx context.Context, repo github.Repository) error {
-	repoDir := filepath.Join(s.dir, repo.GetName())
+func (s *Service) cloneRepo(ctx context.Context, repo *internal.Repository) error {
+	repoDir := filepath.Join(s.dir, repo.Name)
 
 	// do not clone if it exists
 	if _, err := os.Stat(repoDir); err == nil {
 		return nil
 	}
 
-	fmt.Printf("  cloning %s\n", repo.GetName())
+	cloneURL := fmt.Sprintf("https://github.com/%s/%s.git", repo.Owner, repo.Name)
+	fmt.Printf("  cloning %s\n", repo.Name)
 	g := &git.Client{}
-	_, err := g.Run("clone", repo.GetCloneURL(), "--depth=1", repoDir)
+	_, err := g.Run("clone", cloneURL, "--depth=1", repoDir)
 	if err != nil {
 		return err
 	}
@@ -332,54 +402,3 @@ func toRepos(rps []github.Repository) []*internal.Repository {
 
 	return repos
 }
-
-// func (c *Client) Run(ctx context.Context) error {
-// 	fmt.Println("==> searching and fetching repositories")
-// 	start := time.Now()
-
-// 	var repos []github.Repository
-// 	reposfile := filepath.Join(c.dir, "repos.json")
-// 	out, err := ioutil.ReadFile(reposfile)
-// 	if err != nil {
-// 		if c.update {
-// 			return fmt.Errorf("no repos.json file found in dir %q. Please remove the --update flag", c.dir)
-// 		}
-
-// 		repos, err = c.gh.FetchRepos(ctx, c.query)
-// 		if err != nil {
-// 			return err
-// 		}
-
-// 		// dump data so we don't fetch it again
-// 		out, err := json.MarshalIndent(repos, " ", " ")
-// 		if err != nil {
-// 			return err
-// 		}
-
-// 		if err := ioutil.WriteFile(reposfile, out, 0644); err != nil {
-// 			return err
-// 		}
-// 	} else {
-// 		// load from cached file
-// 		if err := json.Unmarshal(out, &repos); err != nil {
-// 			return err
-// 		}
-
-// 		fmt.Printf("==> repos.json found: %d repositories (elapsed time: %s)\n",
-// 			len(repos), time.Since(start).String())
-
-// 	}
-
-// 	if c.update {
-// 		fmt.Println("==> updating repositories ...")
-// 		if err := c.updateRepos(ctx, reposfile, c.query, repos); err != nil {
-// 			return err
-// 		}
-// 	} else {
-// 		if err := c.cloneRepos(ctx, repos); err != nil {
-// 			return err
-// 		}
-// 	}
-
-// 	return nil
-// }

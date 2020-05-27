@@ -11,11 +11,18 @@ var ErrNotFound = errors.New("not found")
 
 // Repository represents a repository on GitHub
 type Repository struct {
-	ID              int64
-	Nwo             string // name with owner
-	Owner           string // i.e: fatih, github
-	Name            string // i.e: vim-go, gh-ost
-	Branch          string // usually it's master, but people can change it
+	ID     int64
+	Nwo    string // name with owner
+	Owner  string // i.e: fatih, github
+	Name   string // i.e: vim-go, gh-ost
+	Branch string // usually it's master, but people can change it
+
+	// SyncedAt defines the time the repo content was synced locally. If
+	// BrancUpdatedAt > SyncedAt, it means the localy copy is out of date and
+	// needs to be updated. A zero time means it's not synced (cloned) locally.
+	SyncedAt time.Time
+
+	// BranchUpdatedAt defines the time the branch was updated on GitHub
 	BranchUpdatedAt time.Time
 
 	CreatedAt time.Time // time this object was created to the store
@@ -27,6 +34,7 @@ type RepositoryFilter struct{}
 type RepositoryUpdate struct {
 	Nwo             *string
 	Owner           *string
+	SyncedAt        *time.Time
 	BranchUpdatedAt *time.Time
 }
 
