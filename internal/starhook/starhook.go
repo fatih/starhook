@@ -58,7 +58,7 @@ func (s *Service) ListRepos(ctx context.Context, query string) error {
 	return nil
 }
 
-// FetchRepos fetches and clones all the repositories.jk
+// FetchRepos fetches and clones all the repositories.
 func (s *Service) FetchRepos(ctx context.Context, query string) error {
 	fmt.Println("==> fetching repositories")
 	start := time.Now()
@@ -79,7 +79,7 @@ func (s *Service) FetchRepos(ctx context.Context, query string) error {
 		}
 	}
 
-	fmt.Printf("==> have %d repositories. last synced: %s\n", len(repos), humanize.Time(lastUpdated))
+	fmt.Printf("==> local %d repositories. last synced: %s\n", len(repos), humanize.Time(lastUpdated))
 
 	if _, err := exec.LookPath("git"); err != nil {
 		// make sure that `git` exists before we continue
