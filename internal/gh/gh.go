@@ -8,6 +8,11 @@ import (
 	"golang.org/x/oauth2"
 )
 
+type Branch struct {
+	SHA       string
+	UpdatedAt time.Time
+}
+
 type searchService interface {
 	// Repositories searches repositories via various criteria.
 	Repositories(ctx context.Context, query string, opt *github.SearchOptions) (*github.RepositoriesSearchResult, *github.Response, error)
@@ -63,11 +68,16 @@ func (c *Client) FetchRepos(ctx context.Context, query string) ([]github.Reposit
 	return repos, nil
 }
 
-func (c *Client) BranchTime(ctx context.Context, owner, name, branch string) (time.Time, error) {
+func (c *Client) Branch(ctx context.Context, owner, name, branch string) (*Branch, error) {
 	res, _, err := c.Repositories.GetBranch(ctx, owner, name, branch)
 	if err != nil {
-		return time.Time{}, err
+		return nil, err
 	}
 
-	return res.GetCommit().GetCommit().GetCommitter().GetDate(), nil
+	updatedAt := res.GetCommit().GetCommit().GetCommitter().GetDate()
+	sha := res.GetCommit().GetSHA()
+	return &Branch{
+		SHA:       sha,
+		UpdatedAt: updatedAt,
+	}, nil
 }

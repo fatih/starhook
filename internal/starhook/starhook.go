@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/dustin/go-humanize"
@@ -60,15 +59,13 @@ func (s *Service) ListRepos(ctx context.Context, query string) error {
 
 // ReposToUpdate returns the repositories to clone or update.
 func (s *Service) ReposToUpdate(ctx context.Context, query string) ([]*internal.Repository, []*internal.Repository, error) {
-	fmt.Println("==> fetching repositories")
-
 	repos, err := s.store.FindRepos(ctx, internal.RepositoryFilter{}, internal.DefaultFindOptions)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	if len(repos) == 0 {
-		return nil, nil, errors.New("no repositories to fetch, please sync first")
+		return nil, nil, errors.New("no repositories to updatw, please sync first")
 	}
 
 	lastUpdated := time.Time{}
@@ -78,7 +75,7 @@ func (s *Service) ReposToUpdate(ctx context.Context, query string) ([]*internal.
 		}
 	}
 
-	fmt.Printf("==> local %d repositories. last synced: %s\n", len(repos), humanize.Time(lastUpdated))
+	fmt.Printf("==> have %d repositories. last synced: %s\n", len(repos), humanize.Time(lastUpdated))
 
 	if _, err := exec.LookPath("git"); err != nil {
 		// make sure that `git` exists before we continue
@@ -213,11 +210,12 @@ func (s *Service) SyncRepos(ctx context.Context, query string) error {
 			// NOTE(fatih): there is the possibility that the default branch
 			// might have changed, for now we assume that's not the case, but
 			// it's worth noting here.
-			updatedAt, err := s.gh.BranchTime(ctx, repo.Owner, repo.Name, repo.Branch)
+			branch, err := s.gh.Branch(ctx, repo.Owner, repo.Name, repo.Branch)
 			if err != nil {
 				return err
 			}
-			repo.BranchUpdatedAt = updatedAt
+			repo.BranchUpdatedAt = branch.UpdatedAt
+			repo.SHA = branch.SHA
 
 			res := result{}
 			localRepo, ok := localRepos[repo.Nwo]
@@ -231,11 +229,13 @@ func (s *Service) SyncRepos(ctx context.Context, query string) error {
 			} else if !localRepo.BranchUpdatedAt.Equal(repo.BranchUpdatedAt) {
 				fmt.Printf("  %q is updated (last updated: %s)\n",
 					repo.Name, humanize.Time(localRepo.BranchUpdatedAt))
+
 				err = s.store.UpdateRepo(ctx,
 					internal.RepositoryBy{
 						Name: &repo.Name,
 					},
 					internal.RepositoryUpdate{
+						SHA:             &repo.SHA,
 						BranchUpdatedAt: &repo.BranchUpdatedAt,
 					},
 				)
@@ -300,7 +300,7 @@ func (s *Service) updateRepos(ctx context.Context, repos []*internal.Repository)
 
 		g.Go(func() error {
 			defer sem.Release(1)
-			return s.updateGitRepo(ctx, repo)
+			return s.updateRepo(ctx, repo)
 		})
 	}
 
@@ -313,7 +313,7 @@ func (s *Service) updateRepos(ctx context.Context, repos []*internal.Repository)
 	return nil
 }
 
-func (s *Service) updateGitRepo(ctx context.Context, repo *internal.Repository) error {
+func (s *Service) updateRepo(ctx context.Context, repo *internal.Repository) error {
 	fmt.Printf("  updating %s\n", repo.Name)
 	repoDir := filepath.Join(s.dir, repo.Name)
 	g := &git.Client{Dir: repoDir}
@@ -325,13 +325,11 @@ func (s *Service) updateGitRepo(ctx context.Context, repo *internal.Repository) 
 		return err
 	}
 
-	branch, err := g.Run("rev-parse", "--abbrev-ref", "HEAD")
-	if err != nil {
+	if _, err := g.Run("checkout", repo.Branch); err != nil {
 		return err
 	}
 
-	_, err = g.Run("pull", "origin", strings.TrimSpace(string(branch)))
-	if err != nil {
+	if _, err := g.Run("pull", "origin", repo.SHA); err != nil {
 		return err
 	}
 

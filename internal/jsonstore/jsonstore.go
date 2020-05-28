@@ -178,6 +178,10 @@ func (r *RepositoryStore) UpdateRepo(ctx context.Context, by internal.Repository
 			repo.Owner = *upd.Owner
 		}
 
+		if upd.SHA != nil {
+			repo.SHA = *upd.SHA
+		}
+
 		if upd.BranchUpdatedAt != nil {
 			repo.BranchUpdatedAt = *upd.BranchUpdatedAt
 		}

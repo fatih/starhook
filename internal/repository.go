@@ -16,6 +16,7 @@ type Repository struct {
 	Owner  string // i.e: fatih, github
 	Name   string // i.e: vim-go, gh-ost
 	Branch string // usually it's master, but people can change it
+	SHA    string // commit SHA, saved during sync
 
 	// SyncedAt defines the time the repo content was synced locally. If
 	// BrancUpdatedAt > SyncedAt, it means the localy copy is out of date and
@@ -34,6 +35,7 @@ type RepositoryFilter struct{}
 type RepositoryUpdate struct {
 	Nwo             *string
 	Owner           *string
+	SHA             *string
 	SyncedAt        *time.Time
 	BranchUpdatedAt *time.Time
 }
