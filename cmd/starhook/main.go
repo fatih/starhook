@@ -45,13 +45,13 @@ func realMain() error {
 	svc := starhook.NewService(ghClient, store, *dir)
 
 	if *fetch {
-		clone, update, err := svc.FetchRepos(ctx, *query)
+		clone, update, err := svc.ReposToUpdate(ctx, *query)
 		if err != nil {
 			return err
 		}
 
-		fmt.Printf("==> found %d repositories\n", len(clone)+len(update))
-		fmt.Printf("  clone : %3d\n", len(clone))
+		fmt.Printf("==> found %d repositories:\n", len(clone)+len(update))
+		fmt.Printf("  new   : %3d\n", len(clone))
 		fmt.Printf("  update: %3d\n", len(update))
 		if *dryRun {
 			fmt.Println("\nremove -dry-run to fetch & clone the repositories")
@@ -65,15 +65,11 @@ func realMain() error {
 			return err
 		}
 		return nil
-	}
-
-	if *sync {
+	} else if *sync {
 		return svc.SyncRepos(ctx, *query)
-	}
-
-	if *list {
+	} else if *list {
 		return svc.ListRepos(ctx, *query)
+	} else {
+		return errors.New("please provide an option: -fetch, -sync or -list")
 	}
-
-	return errors.New("please provide an option: -fetch, -sync or -list")
 }

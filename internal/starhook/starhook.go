@@ -58,8 +58,8 @@ func (s *Service) ListRepos(ctx context.Context, query string) error {
 	return nil
 }
 
-// FetchRepos fetches and clones all the repositories.
-func (s *Service) FetchRepos(ctx context.Context, query string) ([]*internal.Repository, []*internal.Repository, error) {
+// ReposToUpdate returns the repositories to clone or update.
+func (s *Service) ReposToUpdate(ctx context.Context, query string) ([]*internal.Repository, []*internal.Repository, error) {
 	fmt.Println("==> fetching repositories")
 
 	repos, err := s.store.FindRepos(ctx, internal.RepositoryFilter{}, internal.DefaultFindOptions)
@@ -107,8 +107,6 @@ func (s *Service) FetchRepos(ctx context.Context, query string) ([]*internal.Rep
 
 // CloneRepos clones the given repositories.
 func (s *Service) CloneRepos(ctx context.Context, repos []*internal.Repository) error {
-	fmt.Println("==> cloning repositories")
-	start := time.Now()
 	if err := s.cloneRepos(ctx, repos); err != nil {
 		return err
 	}
@@ -128,21 +126,11 @@ func (s *Service) CloneRepos(ctx context.Context, repos []*internal.Repository) 
 		}
 	}
 
-	if len(repos) == 0 {
-		fmt.Printf("==> everything is up-to-date (elapsed time: %s)\n",
-			time.Since(start).String())
-	} else {
-		fmt.Printf("==> fetched and updated: %d repositories (elapsed time: %s)\n",
-			len(repos), time.Since(start).String())
-	}
-
 	return nil
 }
 
 // UpdateRepos updates the given repositories locally to its latest ref.
 func (s *Service) UpdateRepos(ctx context.Context, repos []*internal.Repository) error {
-	fmt.Println("==> updating repositories")
-	start := time.Now()
 	if err := s.updateRepos(ctx, repos); err != nil {
 		return err
 	}
@@ -160,14 +148,6 @@ func (s *Service) UpdateRepos(ctx context.Context, repos []*internal.Repository)
 		if err != nil {
 			return err
 		}
-	}
-
-	if len(repos) == 0 {
-		fmt.Printf("==> everything is up-to-date (elapsed time: %s)\n",
-			time.Since(start).String())
-	} else {
-		fmt.Printf("==> updated: %d repositories (elapsed time: %s)\n",
-			len(repos), time.Since(start).String())
 	}
 
 	return nil
@@ -302,6 +282,7 @@ func (s *Service) SyncRepos(ctx context.Context, query string) error {
 }
 
 func (s *Service) updateRepos(ctx context.Context, repos []*internal.Repository) error {
+	fmt.Println("==> updating repositories")
 	start := time.Now()
 
 	const maxWorkers = 10
@@ -327,7 +308,7 @@ func (s *Service) updateRepos(ctx context.Context, repos []*internal.Repository)
 		fmt.Printf("g.Wait() err = %+v\n", err)
 	}
 
-	fmt.Printf("==> updated to HEAD: %d repositories (elapsed time: %s)\n",
+	fmt.Printf("==> updated: %d repositories (elapsed time: %s)\n",
 		len(repos), time.Since(start).String())
 	return nil
 }
@@ -358,6 +339,7 @@ func (s *Service) updateGitRepo(ctx context.Context, repo *internal.Repository) 
 }
 
 func (s *Service) cloneRepos(ctx context.Context, repos []*internal.Repository) error {
+	fmt.Println("==> cloning repositories")
 	start := time.Now()
 
 	const maxWorkers = 10
