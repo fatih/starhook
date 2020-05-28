@@ -49,8 +49,13 @@ func realMain() error {
 		if err != nil {
 			return err
 		}
+		total := len(clone) + len(update)
+		if total == 0 {
+			fmt.Printf("==> everything is up-to-date (run --sync to update the cache)\n")
+			return nil
+		}
 
-		fmt.Printf("==> found %d repositories:\n", len(clone)+len(update))
+		fmt.Printf("==> found %d repositories:\n", total)
 		fmt.Printf("  new   : %3d\n", len(clone))
 		fmt.Printf("  update: %3d\n", len(update))
 		if *dryRun {
