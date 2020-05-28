@@ -59,17 +59,16 @@ func (s *Service) ListRepos(ctx context.Context, query string) error {
 }
 
 // FetchRepos fetches and clones all the repositories.
-func (s *Service) FetchRepos(ctx context.Context, query string) error {
+func (s *Service) FetchRepos(ctx context.Context, query string) ([]*internal.Repository, []*internal.Repository, error) {
 	fmt.Println("==> fetching repositories")
-	start := time.Now()
 
 	repos, err := s.store.FindRepos(ctx, internal.RepositoryFilter{}, internal.DefaultFindOptions)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
 	if len(repos) == 0 {
-		return errors.New("no repositories to fetch, please sync first")
+		return nil, nil, errors.New("no repositories to fetch, please sync first")
 	}
 
 	lastUpdated := time.Time{}
@@ -83,7 +82,7 @@ func (s *Service) FetchRepos(ctx context.Context, query string) error {
 
 	if _, err := exec.LookPath("git"); err != nil {
 		// make sure that `git` exists before we continue
-		return errors.New("couldn't find 'git' in PATH")
+		return nil, nil, errors.New("couldn't find 'git' in PATH")
 	}
 
 	var (
@@ -103,49 +102,71 @@ func (s *Service) FetchRepos(ctx context.Context, query string) error {
 
 	}
 
-	if len(clone) != 0 {
-		fmt.Println("==> cloning repositories")
-		if err := s.cloneRepos(ctx, clone); err != nil {
-			return err
-		}
+	return clone, update, nil
+}
 
-		for _, repo := range clone {
-			now := time.Now().UTC()
-			err = s.store.UpdateRepo(ctx,
-				internal.RepositoryBy{
-					Name: &repo.Name,
-				},
-				internal.RepositoryUpdate{
-					SyncedAt: &now,
-				},
-			)
+// CloneRepos clones the given repositories.
+func (s *Service) CloneRepos(ctx context.Context, repos []*internal.Repository) error {
+	fmt.Println("==> cloning repositories")
+	start := time.Now()
+	if err := s.cloneRepos(ctx, repos); err != nil {
+		return err
+	}
+
+	for _, repo := range repos {
+		now := time.Now().UTC()
+		err := s.store.UpdateRepo(ctx,
+			internal.RepositoryBy{
+				Name: &repo.Name,
+			},
+			internal.RepositoryUpdate{
+				SyncedAt: &now,
+			},
+		)
+		if err != nil {
+			return err
 		}
 	}
 
-	if len(update) != 0 {
-		fmt.Println("==> updating repositories")
-		if err := s.updateRepos(ctx, update); err != nil {
-			return err
-		}
-
-		for _, repo := range update {
-			now := time.Now().UTC()
-			err = s.store.UpdateRepo(ctx,
-				internal.RepositoryBy{
-					Name: &repo.Name,
-				},
-				internal.RepositoryUpdate{
-					SyncedAt: &now,
-				},
-			)
-		}
-	}
-
-	if len(update) == 0 && len(clone) == 0 {
+	if len(repos) == 0 {
 		fmt.Printf("==> everything is up-to-date (elapsed time: %s)\n",
 			time.Since(start).String())
 	} else {
 		fmt.Printf("==> fetched and updated: %d repositories (elapsed time: %s)\n",
+			len(repos), time.Since(start).String())
+	}
+
+	return nil
+}
+
+// UpdateRepos updates the given repositories locally to its latest ref.
+func (s *Service) UpdateRepos(ctx context.Context, repos []*internal.Repository) error {
+	fmt.Println("==> updating repositories")
+	start := time.Now()
+	if err := s.updateRepos(ctx, repos); err != nil {
+		return err
+	}
+
+	for _, repo := range repos {
+		now := time.Now().UTC()
+		err := s.store.UpdateRepo(ctx,
+			internal.RepositoryBy{
+				Name: &repo.Name,
+			},
+			internal.RepositoryUpdate{
+				SyncedAt: &now,
+			},
+		)
+		if err != nil {
+			return err
+		}
+	}
+
+	if len(repos) == 0 {
+		fmt.Printf("==> everything is up-to-date (elapsed time: %s)\n",
+			time.Since(start).String())
+	} else {
+		fmt.Printf("==> updated: %d repositories (elapsed time: %s)\n",
 			len(repos), time.Since(start).String())
 	}
 

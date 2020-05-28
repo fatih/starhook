@@ -21,12 +21,13 @@ func main() {
 
 func realMain() error {
 	var (
-		token = flag.String("token", "", "github token, i.e: GITHUB_TOKEN")
-		dir   = flag.String("dir", "repos", "path to download the repositories")
-		query = flag.String("query", "org:github language:go", "query to fetch")
-		sync  = flag.Bool("sync", false, "sync the repositores to the given query")
-		fetch = flag.Bool("fetch", false, "fetch the repositores for the given query")
-		list  = flag.Bool("list", false, "list the repositores for the given query")
+		token  = flag.String("token", "", "github token, i.e: GITHUB_TOKEN")
+		dir    = flag.String("dir", "repos", "path to download the repositories")
+		query  = flag.String("query", "org:github language:go", "query to fetch")
+		sync   = flag.Bool("sync", false, "sync the repositores to the given query")
+		fetch  = flag.Bool("fetch", false, "fetch the repositores for the given query")
+		list   = flag.Bool("list", false, "list the repositores for the given query")
+		dryRun = flag.Bool("dry-run", false, "dry-run the given action")
 	)
 	flag.Parse()
 
@@ -44,7 +45,26 @@ func realMain() error {
 	svc := starhook.NewService(ghClient, store, *dir)
 
 	if *fetch {
-		return svc.FetchRepos(ctx, *query)
+		clone, update, err := svc.FetchRepos(ctx, *query)
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("==> found %d repositories\n", len(clone)+len(update))
+		fmt.Printf("  clone : %3d\n", len(clone))
+		fmt.Printf("  update: %3d\n", len(update))
+		if *dryRun {
+			fmt.Println("\nremove -dry-run to fetch & clone the repositories")
+			return nil
+		}
+
+		if err := svc.CloneRepos(ctx, clone); err != nil {
+			return err
+		}
+		if err := svc.UpdateRepos(ctx, update); err != nil {
+			return err
+		}
+		return nil
 	}
 
 	if *sync {
