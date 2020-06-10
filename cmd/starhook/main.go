@@ -25,7 +25,7 @@ func realMain() error {
 		dir    = flag.String("dir", "repos", "path to download the repositories")
 		query  = flag.String("query", "org:github language:go", "query to fetch")
 		sync   = flag.Bool("sync", false, "sync the repositores to the given query")
-		fetch  = flag.Bool("fetch", false, "fetch the repositores for the given query")
+		update = flag.Bool("update", false, "update the local repositores for the given query")
 		list   = flag.Bool("list", false, "list the repositores for the given query")
 		dryRun = flag.Bool("dry-run", false, "dry-run the given action")
 	)
@@ -44,7 +44,7 @@ func realMain() error {
 
 	svc := starhook.NewService(ghClient, store, *dir)
 
-	if *fetch {
+	if *update {
 		clone, update, err := svc.ReposToUpdate(ctx, *query)
 		if err != nil {
 			return err
@@ -59,7 +59,7 @@ func realMain() error {
 		fmt.Printf("  new   : %3d\n", len(clone))
 		fmt.Printf("  update: %3d\n", len(update))
 		if *dryRun {
-			fmt.Println("\nremove -dry-run to fetch & clone the repositories")
+			fmt.Println("\nremove -dry-run to update & clone the repositories")
 			return nil
 		}
 
@@ -75,6 +75,6 @@ func realMain() error {
 	} else if *list {
 		return svc.ListRepos(ctx, *query)
 	} else {
-		return errors.New("please provide an option: -fetch, -sync or -list")
+		return errors.New("please provide an option: -update, -sync or -list")
 	}
 }
