@@ -32,6 +32,7 @@ type Repository struct {
 
 type RepositoryFilter struct{}
 
+// RepositoryUpdate is used to update a Repository
 type RepositoryUpdate struct {
 	Nwo             *string
 	Owner           *string
@@ -40,20 +41,10 @@ type RepositoryUpdate struct {
 	BranchUpdatedAt *time.Time
 }
 
+// RepositoryUpdate is used to select a repository to update
 type RepositoryBy struct {
 	RepoID *int64
 	Name   *string
-}
-
-type RepositoryService interface {
-	// FetchRepos fetches all repositories for the given query
-	FetchRepos(ctx context.Context, query string) ([]*Repository, error)
-
-	// UpdateRepos updates all the repositories for the given query
-	UpdateRepos(ctx context.Context, query string) ([]*Repository, error)
-
-	// ListRepos lists all the repositories for the given query
-	ListRepos(ctx context.Context, query string) ([]*Repository, error)
 }
 
 type RepositoryStore interface {
@@ -64,7 +55,7 @@ type RepositoryStore interface {
 	FindRepo(ctx context.Context, repoID int64) (*Repository, error)
 
 	// CreateRepository creates a single repository and returns the ID.
-	CreateRepo(context.Context, *Repository) (int64, error)
+	CreateRepo(ctx context.Context, repo *Repository) (int64, error)
 
 	// UpdateRepo updates a single repository
 	UpdateRepo(ctx context.Context, by RepositoryBy, upd RepositoryUpdate) error
