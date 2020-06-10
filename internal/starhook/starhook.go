@@ -25,7 +25,7 @@ type result struct {
 }
 
 type Service struct {
-	gh     *gh.Client
+	client *gh.Client
 	dir    string
 	update bool
 	store  internal.RepositoryStore
@@ -33,9 +33,9 @@ type Service struct {
 
 func NewService(ghClient *gh.Client, store internal.RepositoryStore, dir string) *Service {
 	return &Service{
-		gh:    ghClient,
-		dir:   dir,
-		store: store,
+		client: ghClient,
+		dir:    dir,
+		store:  store,
 	}
 }
 
@@ -164,7 +164,7 @@ func (s *Service) SyncRepos(ctx context.Context, query string) error {
 	}
 
 	start := time.Now()
-	ghRepos, err := s.gh.FetchRepos(ctx, query)
+	ghRepos, err := s.client.FetchRepos(ctx, query)
 	if err != nil {
 		return err
 	}
@@ -210,7 +210,7 @@ func (s *Service) SyncRepos(ctx context.Context, query string) error {
 			// NOTE(fatih): there is the possibility that the default branch
 			// might have changed, for now we assume that's not the case, but
 			// it's worth noting here.
-			branch, err := s.gh.Branch(ctx, repo.Owner, repo.Name, repo.Branch)
+			branch, err := s.client.Branch(ctx, repo.Owner, repo.Name, repo.Branch)
 			if err != nil {
 				return err
 			}
