@@ -205,3 +205,50 @@ func (r *RepositoryStore) UpdateRepo(ctx context.Context, by internal.Repository
 
 	return nil
 }
+
+func (r *RepositoryStore) DeleteRepo(ctx context.Context, by internal.RepositoryBy) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	in, err := ioutil.ReadFile(r.path)
+	if err != nil {
+		return err
+	}
+
+	var db internalDB
+	err = json.Unmarshal(in, &db)
+	if err != nil {
+		return err
+	}
+
+	deleteAble := func(repo *internal.Repository) bool {
+		if by.Name != nil && *by.Name == repo.Name {
+			return true
+		}
+		if by.RepoID != nil && *by.RepoID == repo.ID {
+			return true
+		}
+
+		return false
+	}
+
+	ix := 0 // to be deleted
+	for i, repo := range db.Repositories {
+		if !deleteAble(repo) {
+			continue
+		}
+		ix = i
+	}
+
+	db.Repositories = append(db.Repositories[:ix], db.Repositories[ix+1:]...)
+	out, err := json.MarshalIndent(&db, " ", "  ")
+	if err != nil {
+		return err
+	}
+
+	if err := ioutil.WriteFile(r.path, out, 0644); err != nil {
+		return err
+	}
+
+	return nil
+}

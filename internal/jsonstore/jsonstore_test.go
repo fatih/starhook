@@ -266,3 +266,42 @@ func TestNewRepositoryStore_FindRepo(t *testing.T) {
 	testutil.Assert(t, !rp.CreatedAt.IsZero(), "created_at should be not zero")
 	testutil.Assert(t, !rp.UpdatedAt.IsZero(), "updated_at should be not zero")
 }
+
+func TestNewRepositoryStore_DeleteRepo(t *testing.T) {
+	dir, err := ioutil.TempDir("", "starhook")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		os.RemoveAll(dir)
+	})
+
+	store, err := NewRepositoryStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := context.Background()
+
+	repo := &internal.Repository{
+		Owner: "fatih",
+		Name:  "vim-go",
+	}
+	id, err := store.CreateRepo(ctx, repo)
+	testutil.Ok(t, err)
+
+	repo2 := &internal.Repository{
+		Owner: "fatih",
+		Name:  "gomodifytags",
+	}
+	_, err = store.CreateRepo(ctx, repo2)
+	testutil.Ok(t, err)
+
+	// delete first repo
+	err = store.DeleteRepo(ctx, internal.RepositoryBy{RepoID: &id})
+	testutil.Ok(t, err)
+
+	repos, err := store.FindRepos(ctx, internal.RepositoryFilter{}, internal.DefaultFindOptions)
+	testutil.Ok(t, err)
+	testutil.Equals(t, len(repos), 1)
+}

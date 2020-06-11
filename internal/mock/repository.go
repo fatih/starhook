@@ -21,6 +21,9 @@ type RepositoryStore struct {
 
 	UpdateRepoFn      func(ctx context.Context, by internal.RepositoryBy, upd internal.RepositoryUpdate) error
 	UpdateRepoInvoked bool
+
+	DeleteRepoFn      func(ctx context.Context, by internal.RepositoryBy) error
+	DeleteRepoInvoked bool
 }
 
 // FindRepositories returns a list of repositories
@@ -45,4 +48,10 @@ func (r *RepositoryStore) CreateRepo(ctx context.Context, repo *internal.Reposit
 func (r *RepositoryStore) UpdateRepo(ctx context.Context, by internal.RepositoryBy, upd internal.RepositoryUpdate) error {
 	r.UpdateRepoInvoked = true
 	return r.UpdateRepoFn(ctx, by, upd)
+}
+
+// DeleteRepo deletes a single repository
+func (r *RepositoryStore) DeleteRepo(ctx context.Context, by internal.RepositoryBy) error {
+	r.DeleteRepoInvoked = true
+	return r.DeleteRepoFn(ctx, by)
 }

@@ -59,6 +59,9 @@ type RepositoryStore interface {
 
 	// UpdateRepo updates a single repository
 	UpdateRepo(ctx context.Context, by RepositoryBy, upd RepositoryUpdate) error
+
+	// DeleteRepo deletes a single repository
+	DeleteRepo(ctx context.Context, by RepositoryBy) error
 }
 
 // DefaultFindOptions is the default option to be used with Find* methods
