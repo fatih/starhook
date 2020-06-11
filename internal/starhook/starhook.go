@@ -39,6 +39,27 @@ func NewService(ghClient *gh.Client, store internal.RepositoryStore, dir string)
 	}
 }
 
+// DeleteRepo deletes the given repo from the DB and the folder if it's exist.
+func (s *Service) DeleteRepo(ctx context.Context, repoID int64) error {
+	repo, err := s.store.FindRepo(ctx, repoID)
+	if err != nil {
+		return err
+	}
+
+	err = s.store.DeleteRepo(ctx, internal.RepositoryBy{RepoID: &repoID})
+	if err != nil {
+		return err
+	}
+
+	err = s.deleteRepo(ctx, repo)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("==> removed repository: %q\n", repo.Nwo)
+	return nil
+}
+
 // ListRepos lists all the repositories.
 func (s *Service) ListRepos(ctx context.Context, query string) error {
 	repos, err := s.store.FindRepos(ctx, internal.RepositoryFilter{}, internal.DefaultFindOptions)
@@ -51,6 +72,7 @@ func (s *Service) ListRepos(ctx context.Context, query string) error {
 		if repo.UpdatedAt.After(lastUpdated) {
 			lastUpdated = repo.UpdatedAt
 		}
+		fmt.Printf("%3d %s\n", repo.ID, repo.Nwo)
 	}
 
 	fmt.Printf("==> local %d repositories (last synced: %s)\n", len(repos), humanize.Time(lastUpdated))
@@ -282,6 +304,9 @@ func (s *Service) SyncRepos(ctx context.Context, query string) error {
 }
 
 func (s *Service) updateRepos(ctx context.Context, repos []*internal.Repository) error {
+	if len(repos) == 0 {
+		return nil
+	}
 	fmt.Println("==> updating repositories")
 	start := time.Now()
 
@@ -337,6 +362,10 @@ func (s *Service) updateRepo(ctx context.Context, repo *internal.Repository) err
 }
 
 func (s *Service) cloneRepos(ctx context.Context, repos []*internal.Repository) error {
+	if len(repos) == 0 {
+		return nil
+	}
+
 	fmt.Println("==> cloning repositories")
 	start := time.Now()
 
@@ -385,6 +414,11 @@ func (s *Service) cloneRepo(ctx context.Context, repo *internal.Repository) erro
 	}
 
 	return nil
+}
+
+func (s *Service) deleteRepo(ctx context.Context, repo *internal.Repository) error {
+	repoDir := filepath.Join(s.dir, repo.Name)
+	return os.RemoveAll(repoDir)
 }
 
 func toRepos(rps []github.Repository) []*internal.Repository {

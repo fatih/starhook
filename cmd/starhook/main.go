@@ -21,13 +21,14 @@ func main() {
 
 func realMain() error {
 	var (
-		token  = flag.String("token", "", "github token, i.e: GITHUB_TOKEN")
-		dir    = flag.String("dir", "repos", "path to download the repositories")
-		query  = flag.String("query", "org:github language:go", "query to fetch")
-		sync   = flag.Bool("sync", false, "sync the repositores to the given query")
-		update = flag.Bool("update", false, "update the local repositores for the given query")
-		list   = flag.Bool("list", false, "list the repositores for the given query")
-		dryRun = flag.Bool("dry-run", false, "dry-run the given action")
+		token      = flag.String("token", "", "github token, i.e: GITHUB_TOKEN")
+		dir        = flag.String("dir", "repos", "path to download the repositories")
+		query      = flag.String("query", "org:github language:go", "query to fetch")
+		sync       = flag.Bool("sync", false, "sync the repositores to the given query")
+		update     = flag.Bool("update", false, "update the local repositores for the given query")
+		list       = flag.Bool("list", false, "list the repositores for the given query")
+		deleteRepo = flag.Int64("delete", 0, "delete the repository for the given id")
+		dryRun     = flag.Bool("dry-run", false, "dry-run the given action")
 	)
 	flag.Parse()
 
@@ -74,6 +75,8 @@ func realMain() error {
 		return svc.SyncRepos(ctx, *query)
 	} else if *list {
 		return svc.ListRepos(ctx, *query)
+	} else if *deleteRepo != 0 {
+		return svc.DeleteRepo(ctx, *deleteRepo)
 	} else {
 		return errors.New("please provide an option: -update, -sync or -list")
 	}
