@@ -6,15 +6,18 @@ import (
 
 	"github.com/fatih/starhook/internal"
 	"github.com/fatih/starhook/internal/mock"
-	"github.com/fatih/starhook/internal/testutil"
+
+	qt "github.com/frankban/quicktest"
 )
 
 func TestNewService(t *testing.T) {
+	c := qt.New(t)
 	svc := NewService(nil, nil, "")
-	testutil.Assert(t, svc != nil, "service should be not nil")
+	c.Assert(svc, qt.Not(qt.IsNil), qt.Commentf("service should be not nil"))
 }
 
 func TestService_ListRepos(t *testing.T) {
+	c := qt.New(t)
 	ctx := context.Background()
 
 	store := &mock.RepositoryStore{
@@ -31,6 +34,6 @@ func TestService_ListRepos(t *testing.T) {
 	query := "org:github language:go"
 
 	err := svc.ListRepos(ctx, query)
-	testutil.Ok(t, err)
-	testutil.Assert(t, store.FindReposInvoked, "FindRepos() should be called")
+	c.Assert(err, qt.IsNil)
+	c.Assert(store.FindReposInvoked, qt.IsTrue, qt.Commentf("FindRepos() should be called"))
 }

@@ -5,17 +5,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fatih/starhook/internal/testutil"
 	"github.com/google/go-github/v28/github"
+
+	qt "github.com/frankban/quicktest"
 )
 
 func TestNewClient(t *testing.T) {
+	c := qt.New(t)
 	ctx := context.Background()
 	client := NewClient(ctx, "")
-	testutil.Assert(t, client != nil, "client should be not nil")
+	c.Assert(client, qt.Not(qt.IsNil), qt.Commentf("client should be not nil"))
 }
 
 func TestClient_FetchRepos(t *testing.T) {
+	c := qt.New(t)
 	ctx := context.Background()
 
 	repoName1 := "foo"
@@ -44,12 +47,13 @@ func TestClient_FetchRepos(t *testing.T) {
 	query := "org:github language:go"
 
 	repos, err := client.FetchRepos(ctx, query)
-	testutil.Ok(t, err)
-	testutil.Assert(t, searchService.RepositoriesInvoked, "Repositories() should be called")
-	testutil.Equals(t, len(repos), 2)
+	c.Assert(err, qt.IsNil)
+	c.Assert(searchService.RepositoriesInvoked, qt.IsTrue, qt.Commentf("Repositories() should be called"))
+	c.Assert(repos, qt.HasLen, 2)
 }
 
 func TestClient_Branch(t *testing.T) {
+	c := qt.New(t)
 	ctx := context.Background()
 
 	wantSHA := "123"
@@ -79,10 +83,10 @@ func TestClient_Branch(t *testing.T) {
 	branch := "main"
 
 	resp, err := client.Branch(ctx, owner, repo, branch)
-	testutil.Ok(t, err)
-	testutil.Equals(t, resp.SHA, wantSHA)
-	testutil.Equals(t, resp.UpdatedAt, updatedAt)
-	testutil.Assert(t, repoService.GetBranchInvoked, "GetBranch() should be called")
+	c.Assert(err, qt.IsNil)
+	c.Assert(resp.SHA, qt.Equals, wantSHA)
+	c.Assert(resp.UpdatedAt, qt.Equals, updatedAt)
+	c.Assert(repoService.GetBranchInvoked, qt.IsTrue, qt.Commentf("GetBranch() should be called"))
 }
 
 type mockRepositoriesService struct {
