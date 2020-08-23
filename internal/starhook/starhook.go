@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"time"
 
@@ -87,7 +86,7 @@ func (s *Service) ReposToUpdate(ctx context.Context, query string) ([]*internal.
 	}
 
 	if len(repos) == 0 {
-		return nil, nil, errors.New("no repositories to updatw, please sync first")
+		return nil, nil, errors.New("no repositories to update, please sync first")
 	}
 
 	lastUpdated := time.Time{}
@@ -98,11 +97,6 @@ func (s *Service) ReposToUpdate(ctx context.Context, query string) ([]*internal.
 	}
 
 	fmt.Printf("==> have %d repositories. last synced: %s\n", len(repos), humanize.Time(lastUpdated))
-
-	if _, err := exec.LookPath("git"); err != nil {
-		// make sure that `git` exists before we continue
-		return nil, nil, errors.New("couldn't find 'git' in PATH")
-	}
 
 	var (
 		clone  []*internal.Repository
@@ -131,6 +125,7 @@ func (s *Service) CloneRepos(ctx context.Context, repos []*internal.Repository) 
 	}
 
 	for _, repo := range repos {
+		fmt.Printf("  %q is created\n", repo.Name)
 		now := time.Now().UTC()
 		err := s.store.UpdateRepo(ctx,
 			internal.RepositoryBy{
@@ -155,6 +150,9 @@ func (s *Service) UpdateRepos(ctx context.Context, repos []*internal.Repository)
 	}
 
 	for _, repo := range repos {
+		fmt.Printf("  %q is updated (last updated: %s)\n",
+			repo.Name, humanize.Time(repo.SyncedAt))
+
 		now := time.Now().UTC()
 		err := s.store.UpdateRepo(ctx,
 			internal.RepositoryBy{
@@ -174,7 +172,12 @@ func (s *Service) UpdateRepos(ctx context.Context, repos []*internal.Repository)
 
 // SyncRepos syncs the remote repositories metadata with the store data.
 func (s *Service) SyncRepos(ctx context.Context, query string) error {
-	fmt.Println("==> syncing repositories")
+	ghRepos, err := s.client.FetchRepos(ctx, query)
+	if err != nil {
+		return err
+	}
+	fetchedRepos := toRepos(ghRepos)
+
 	repos, err := s.store.FindRepos(ctx, internal.RepositoryFilter{}, internal.DefaultFindOptions)
 	if err != nil {
 		return err
@@ -185,38 +188,10 @@ func (s *Service) SyncRepos(ctx context.Context, query string) error {
 		localRepos[repo.Nwo] = repo
 	}
 
-	start := time.Now()
-	ghRepos, err := s.client.FetchRepos(ctx, query)
-	if err != nil {
-		return err
-	}
-	fetchedRepos := toRepos(ghRepos)
-
-	fmt.Printf("==> queried %d repositories (elapsed time: %s)\n",
-		len(fetchedRepos), time.Since(start).String())
-
-	start = time.Now()
 	g, ctx := errgroup.WithContext(ctx)
 
 	const maxWorkers = 5
 	sem := semaphore.NewWeighted(maxWorkers)
-
-	done := make(chan struct{})
-	ch := make(chan result)
-
-	updated := 0
-	created := 0
-	go func() {
-		for r := range ch {
-			if r.updated {
-				updated++
-			}
-			if r.created {
-				created++
-			}
-		}
-		close(done)
-	}()
 
 	for _, repo := range fetchedRepos {
 		repo := repo
@@ -239,19 +214,13 @@ func (s *Service) SyncRepos(ctx context.Context, query string) error {
 			repo.BranchUpdatedAt = branch.UpdatedAt
 			repo.SHA = branch.SHA
 
-			res := result{}
 			localRepo, ok := localRepos[repo.Nwo]
 			if !ok {
-				fmt.Printf("  %q is created\n", repo.Name)
 				_, err = s.store.CreateRepo(ctx, repo)
 				if err != nil {
 					return err
 				}
-				res.created = true
 			} else if !localRepo.BranchUpdatedAt.Equal(repo.BranchUpdatedAt) {
-				fmt.Printf("  %q is updated (last updated: %s)\n",
-					repo.Name, humanize.Time(localRepo.BranchUpdatedAt))
-
 				err = s.store.UpdateRepo(ctx,
 					internal.RepositoryBy{
 						Name: &repo.Name,
@@ -264,43 +233,13 @@ func (s *Service) SyncRepos(ctx context.Context, query string) error {
 				if err != nil {
 					return err
 				}
-				res.updated = true
-			}
-
-			select {
-			case ch <- res:
-			case <-ctx.Done():
-				return ctx.Err()
 			}
 
 			return nil
 		})
 	}
 
-	// Check whether any of the goroutines failed. Since g is accumulating the
-	// errors, we don't need to send them (or check for them) in the individual
-	// results sent on the channel.
-	err = g.Wait()
-	close(ch)
-	if err != nil {
-		return err
-	}
-	<-done
-
-	if updated == 0 && created == 0 {
-		fmt.Printf("==> everything is up-to-date (elapsed time: %s)\n", time.Since(start).String())
-	}
-
-	if updated != 0 {
-		fmt.Printf("==> updated: %d repositories (elapsed time: %s)\n",
-			updated, time.Since(start).String())
-	}
-	if created != 0 {
-		fmt.Printf("==> created: %d repositories (elapsed time: %s)\n",
-			created, time.Since(start).String())
-	}
-
-	return nil
+	return g.Wait()
 }
 
 func (s *Service) updateRepos(ctx context.Context, repos []*internal.Repository) error {

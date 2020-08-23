@@ -24,8 +24,7 @@ func realMain() error {
 		token      = flag.String("token", "", "github token, i.e: GITHUB_TOKEN")
 		dir        = flag.String("dir", "repos", "path to download the repositories")
 		query      = flag.String("query", "org:github language:go", "query to fetch")
-		sync       = flag.Bool("sync", false, "sync the repositores to the given query")
-		update     = flag.Bool("update", false, "update the local repositores for the given query")
+		sync       = flag.Bool("sync", false, "sync db & update the local repositores for the given query")
 		list       = flag.Bool("list", false, "list the repositores for the given query")
 		deleteRepo = flag.Int64("delete", 0, "delete the repository for the given id")
 		dryRun     = flag.Bool("dry-run", false, "dry-run the given action")
@@ -45,20 +44,26 @@ func realMain() error {
 
 	svc := starhook.NewService(ghClient, store, *dir)
 
-	if *update {
+	if *sync {
+		fmt.Println("==> syncing repositories with db")
+		if err := svc.SyncRepos(ctx, *query); err != nil {
+			return err
+		}
+
 		clone, update, err := svc.ReposToUpdate(ctx, *query)
 		if err != nil {
 			return err
 		}
 		total := len(clone) + len(update)
 		if total == 0 {
-			fmt.Printf("==> everything is up-to-date (run --sync to update the cache)\n")
+			fmt.Printf("==> everything is up-to-date")
 			return nil
 		}
 
-		fmt.Printf("==> found %d repositories:\n", total)
-		fmt.Printf("  new   : %3d\n", len(clone))
-		fmt.Printf("  update: %3d\n", len(update))
+		fmt.Printf("==> repository updates:  \n")
+		fmt.Printf("  clone  : %3d\n", len(clone))
+		fmt.Printf("  update : %3d\n", len(update))
+
 		if *dryRun {
 			fmt.Println("\nremove -dry-run to update & clone the repositories")
 			return nil
@@ -71,13 +76,11 @@ func realMain() error {
 			return err
 		}
 		return nil
-	} else if *sync {
-		return svc.SyncRepos(ctx, *query)
 	} else if *list {
 		return svc.ListRepos(ctx, *query)
 	} else if *deleteRepo != 0 {
 		return svc.DeleteRepo(ctx, *deleteRepo)
 	} else {
-		return errors.New("please provide an option: -update, -sync or -list")
+		return errors.New("please provide an option: -delete, -sync or -list")
 	}
 }
