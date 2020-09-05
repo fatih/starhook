@@ -15,7 +15,7 @@ func TestNewRepositoryStore_newFile(t *testing.T) {
 	c := qt.New(t)
 	dir := c.Mkdir()
 
-	store, err := NewRepositoryStore(dir)
+	store, err := NewRepositoryStore(dir, "test:query")
 	c.Assert(err, qt.IsNil)
 
 	out, err := ioutil.ReadFile(store.path)
@@ -31,17 +31,17 @@ func TestNewRepositoryStore_existingFile(t *testing.T) {
 	c := qt.New(t)
 	dir := c.Mkdir()
 
-	store, err := NewRepositoryStore(dir)
+	store, err := NewRepositoryStore(dir, "test:query")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	content := `{"foo":"bar"}`
+	content := `{"query": "test:query", "foo":"bar"}`
 	err = ioutil.WriteFile(store.path, []byte(content), 0666)
 	c.Assert(err, qt.IsNil)
 
 	// open again and check whether file content is changed or not
-	_, err = NewRepositoryStore(dir)
+	_, err = NewRepositoryStore(dir, "test:query")
 	c.Assert(err, qt.IsNil)
 
 	out, err := ioutil.ReadFile(store.path)
@@ -57,7 +57,7 @@ func TestNewRepositoryStore_CreateRepo(t *testing.T) {
 	c := qt.New(t)
 	dir := c.Mkdir()
 
-	store, err := NewRepositoryStore(dir)
+	store, err := NewRepositoryStore(dir, "test:query")
 	c.Assert(err, qt.IsNil)
 
 	repo := &internal.Repository{
@@ -85,7 +85,7 @@ func TestNewRepositoryStore_CreateRepo_multiple(t *testing.T) {
 	c := qt.New(t)
 	dir := c.Mkdir()
 
-	store, err := NewRepositoryStore(dir)
+	store, err := NewRepositoryStore(dir, "test:query")
 	c.Assert(err, qt.IsNil)
 
 	repo := &internal.Repository{
@@ -120,7 +120,7 @@ func TestNewRepositoryStore_FindRepos(t *testing.T) {
 	c := qt.New(t)
 	dir := c.Mkdir()
 
-	store, err := NewRepositoryStore(dir)
+	store, err := NewRepositoryStore(dir, "test:query")
 	c.Assert(err, qt.IsNil)
 
 	repo := &internal.Repository{
@@ -146,7 +146,7 @@ func TestNewRepositoryStore_UpdateRepo(t *testing.T) {
 	c := qt.New(t)
 	dir := c.Mkdir()
 
-	store, err := NewRepositoryStore(dir)
+	store, err := NewRepositoryStore(dir, "test:query")
 	c.Assert(err, qt.IsNil)
 
 	repo := &internal.Repository{
@@ -174,7 +174,7 @@ func TestNewRepositoryStore_FindRepo(t *testing.T) {
 	c := qt.New(t)
 	dir := c.Mkdir()
 
-	store, err := NewRepositoryStore(dir)
+	store, err := NewRepositoryStore(dir, "test:query")
 	c.Assert(err, qt.IsNil)
 
 	repo := &internal.Repository{
@@ -198,7 +198,7 @@ func TestNewRepositoryStore_DeleteRepo(t *testing.T) {
 	c := qt.New(t)
 	dir := c.Mkdir()
 
-	store, err := NewRepositoryStore(dir)
+	store, err := NewRepositoryStore(dir, "test:query")
 	c.Assert(err, qt.IsNil)
 
 	ctx := context.Background()

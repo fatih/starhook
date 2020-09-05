@@ -19,6 +19,9 @@ var _ internal.RepositoryStore = (*RepositoryStore)(nil)
 
 type internalDB struct {
 	Repositories []*internal.Repository `json:"repositories"`
+
+	// Query defines the initial GitHub search query to establish the DB
+	Query string `json:"query"`
 }
 
 type RepositoryStore struct {
@@ -26,7 +29,7 @@ type RepositoryStore struct {
 	mu   sync.Mutex
 }
 
-func NewRepositoryStore(dir string) (*RepositoryStore, error) {
+func NewRepositoryStore(dir, query string) (*RepositoryStore, error) {
 	if _, err := os.Stat(dir); err != nil {
 		return nil, fmt.Errorf("dir %q does not exist", err)
 	}
@@ -34,14 +37,16 @@ func NewRepositoryStore(dir string) (*RepositoryStore, error) {
 	reposfile := filepath.Join(dir, dbFile)
 
 	// check if the file exists
-	_, err := ioutil.ReadFile(reposfile)
+	in, err := ioutil.ReadFile(reposfile)
 	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
 
 	// if not, create a new one
 	if os.IsNotExist(err) {
-		db := internalDB{}
+		db := internalDB{
+			Query: query,
+		}
 
 		out, err := json.MarshalIndent(&db, " ", "  ")
 		if err != nil {
@@ -50,6 +55,18 @@ func NewRepositoryStore(dir string) (*RepositoryStore, error) {
 
 		if err := ioutil.WriteFile(reposfile, []byte(out), 0666); err != nil {
 			return nil, err
+		}
+	} else {
+		// check whether the query matches
+		var db internalDB
+		err = json.Unmarshal(in, &db)
+		if err != nil {
+			return nil, err
+		}
+
+		if db.Query != query {
+			return nil, fmt.Errorf("store error: query mismatch\n  current: %q\n  passed : %q\n",
+				db.Query, query)
 		}
 	}
 

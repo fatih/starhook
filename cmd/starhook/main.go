@@ -40,7 +40,7 @@ func realMain() error {
 
 	ctx := context.Background()
 	ghClient := gh.NewClient(ctx, *token)
-	store, err := jsonstore.NewRepositoryStore(*dir)
+	store, err := jsonstore.NewRepositoryStore(*dir, *query)
 	if err != nil {
 		return err
 	}
