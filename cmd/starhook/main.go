@@ -48,7 +48,7 @@ func realMain() error {
 	svc := starhook.NewService(ghClient, store, *dir)
 
 	if *sync {
-		fmt.Println("==> querying for latest repositories 0")
+		fmt.Println("==> querying for latest repositories ...")
 		ghRepos, err := ghClient.FetchRepos(ctx, *query)
 		if err != nil {
 			return err
