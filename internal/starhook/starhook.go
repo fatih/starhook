@@ -13,7 +13,6 @@ import (
 	"github.com/fatih/starhook/internal/gh"
 	"github.com/fatih/starhook/internal/git"
 
-	"github.com/google/go-github/v28/github"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )
@@ -60,7 +59,7 @@ func (s *Service) DeleteRepo(ctx context.Context, repoID int64) error {
 }
 
 // ListRepos lists all the repositories.
-func (s *Service) ListRepos(ctx context.Context, query string) error {
+func (s *Service) ListRepos(ctx context.Context) error {
 	repos, err := s.store.FindRepos(ctx, internal.RepositoryFilter{}, internal.DefaultFindOptions)
 	if err != nil {
 		return err
@@ -79,7 +78,7 @@ func (s *Service) ListRepos(ctx context.Context, query string) error {
 }
 
 // ReposToUpdate returns the repositories to clone or update.
-func (s *Service) ReposToUpdate(ctx context.Context, query string) ([]*internal.Repository, []*internal.Repository, error) {
+func (s *Service) ReposToUpdate(ctx context.Context) ([]*internal.Repository, []*internal.Repository, error) {
 	repos, err := s.store.FindRepos(ctx, internal.RepositoryFilter{}, internal.DefaultFindOptions)
 	if err != nil {
 		return nil, nil, err
@@ -171,12 +170,7 @@ func (s *Service) UpdateRepos(ctx context.Context, repos []*internal.Repository)
 }
 
 // SyncRepos syncs the remote repositories metadata with the store data.
-func (s *Service) SyncRepos(ctx context.Context, query string) error {
-	ghRepos, err := s.client.FetchRepos(ctx, query)
-	if err != nil {
-		return err
-	}
-	fetchedRepos := toRepos(ghRepos)
+func (s *Service) SyncRepos(ctx context.Context, fetchedRepos []*internal.Repository) error {
 
 	repos, err := s.store.FindRepos(ctx, internal.RepositoryFilter{}, internal.DefaultFindOptions)
 	if err != nil {
@@ -358,21 +352,4 @@ func (s *Service) cloneRepo(ctx context.Context, repo *internal.Repository) erro
 func (s *Service) deleteRepo(ctx context.Context, repo *internal.Repository) error {
 	repoDir := filepath.Join(s.dir, repo.Name)
 	return os.RemoveAll(repoDir)
-}
-
-func toRepos(rps []github.Repository) []*internal.Repository {
-	repos := make([]*internal.Repository, 0, len(rps))
-	for _, repo := range rps {
-		owner := repo.GetOwner().GetLogin()
-		name := repo.GetName()
-
-		repos = append(repos, &internal.Repository{
-			Nwo:    fmt.Sprintf("%s/%s", owner, name),
-			Owner:  owner,
-			Name:   name,
-			Branch: repo.GetDefaultBranch(),
-		})
-	}
-
-	return repos
 }

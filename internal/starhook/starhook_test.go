@@ -31,9 +31,7 @@ func TestService_ListRepos(t *testing.T) {
 
 	svc := NewService(nil, store, "")
 
-	query := "org:github language:go"
-
-	err := svc.ListRepos(ctx, query)
+	err := svc.ListRepos(ctx)
 	c.Assert(err, qt.IsNil)
 	c.Assert(store.FindReposInvoked, qt.IsTrue, qt.Commentf("FindRepos() should be called"))
 }
