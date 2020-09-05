@@ -7,9 +7,12 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/fatih/starhook/internal"
 	"github.com/fatih/starhook/internal/gh"
 	"github.com/fatih/starhook/internal/jsonstore"
 	"github.com/fatih/starhook/internal/starhook"
+
+	"github.com/google/go-github/v28/github"
 )
 
 func main() {
@@ -45,12 +48,19 @@ func realMain() error {
 	svc := starhook.NewService(ghClient, store, *dir)
 
 	if *sync {
+		fmt.Println("==> querying for latest repositories 0")
+		ghRepos, err := ghClient.FetchRepos(ctx, *query)
+		if err != nil {
+			return err
+		}
+		fetchedRepos := toRepos(ghRepos)
+
 		fmt.Println("==> syncing repositories with db")
-		if err := svc.SyncRepos(ctx, *query); err != nil {
+		if err := svc.SyncRepos(ctx, fetchedRepos); err != nil {
 			return err
 		}
 
-		clone, update, err := svc.ReposToUpdate(ctx, *query)
+		clone, update, err := svc.ReposToUpdate(ctx)
 		if err != nil {
 			return err
 		}
@@ -77,10 +87,27 @@ func realMain() error {
 		}
 		return nil
 	} else if *list {
-		return svc.ListRepos(ctx, *query)
+		return svc.ListRepos(ctx)
 	} else if *deleteRepo != 0 {
 		return svc.DeleteRepo(ctx, *deleteRepo)
 	} else {
 		return errors.New("please provide an option: -delete, -sync or -list")
 	}
+}
+
+func toRepos(rps []github.Repository) []*internal.Repository {
+	repos := make([]*internal.Repository, 0, len(rps))
+	for _, repo := range rps {
+		owner := repo.GetOwner().GetLogin()
+		name := repo.GetName()
+
+		repos = append(repos, &internal.Repository{
+			Nwo:    fmt.Sprintf("%s/%s", owner, name),
+			Owner:  owner,
+			Name:   name,
+			Branch: repo.GetDefaultBranch(),
+		})
+	}
+
+	return repos
 }
