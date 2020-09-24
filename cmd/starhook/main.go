@@ -55,7 +55,7 @@ func realMain() error {
 		}
 		fetchedRepos := toRepos(ghRepos)
 
-		fmt.Println("==> syncing repositories with db")
+		fmt.Println("==> syncing repositories to the db ...")
 		if err := svc.SyncRepos(ctx, fetchedRepos); err != nil {
 			return err
 		}
@@ -70,7 +70,7 @@ func realMain() error {
 			return nil
 		}
 
-		fmt.Printf("==> repository updates:  \n")
+		fmt.Printf("==> updates found:  \n")
 		fmt.Printf("  clone  : %3d\n", len(clone))
 		fmt.Printf("  update : %3d\n", len(update))
 
