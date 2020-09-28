@@ -55,7 +55,6 @@ func realMain() error {
 		}
 		fetchedRepos := toRepos(ghRepos)
 
-		fmt.Println("==> syncing repositories to the db ...")
 		if err := svc.SyncRepos(ctx, fetchedRepos); err != nil {
 			return err
 		}

@@ -95,7 +95,7 @@ func (s *Service) ReposToUpdate(ctx context.Context) ([]*internal.Repository, []
 		}
 	}
 
-	fmt.Printf("==> have %d repositories. last synced: %s\n", len(repos), humanize.Time(lastSynced))
+	fmt.Printf("==> last synced: %s\n", humanize.Time(lastSynced))
 
 	var (
 		clone  []*internal.Repository
