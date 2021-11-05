@@ -26,7 +26,7 @@ func realMain() error {
 	var (
 		token      = flag.String("token", "", "github token, i.e: GITHUB_TOKEN")
 		dir        = flag.String("dir", "repos", "path to download the repositories")
-		query      = flag.String("query", "org:github language:go", "query to fetch")
+		query      = flag.String("query", "user:fatih language:go", "query to fetch")
 		sync       = flag.Bool("sync", false, "sync db & update the local repositores for the given query")
 		list       = flag.Bool("list", false, "list the repositores for the given query")
 		deleteRepo = flag.Int64("delete", 0, "delete the repository for the given id")
