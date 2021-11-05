@@ -15,7 +15,7 @@ type Repository struct {
 	Nwo    string // name with owner
 	Owner  string // i.e: fatih, github
 	Name   string // i.e: vim-go, gh-ost
-	Branch string // usually it's master, but people can change it
+	Branch string // usually it's main, but people can change it
 	SHA    string // commit SHA, saved during sync
 
 	// SyncedAt defines the time the repo content was synced locally. If
@@ -26,7 +26,7 @@ type Repository struct {
 	// BranchUpdatedAt defines the time the branch was updated on GitHub
 	BranchUpdatedAt time.Time
 
-	CreatedAt time.Time // time this object was created to the store
+	CreatedAt time.Time // time this object was created in the store
 	UpdatedAt time.Time // time this object was updated in the store
 }
 

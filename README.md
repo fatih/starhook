@@ -47,11 +47,11 @@ $ starhook --token=$GITHUB_TOKEN --dir /path/to/repos --query "user:fatih langua
 
 ### Update repositories
 
-To update existing repositories, just run the same command. `starhook` only updates repositores that have new changes:
+To update existing repositories, just run the same command. `starhook` only updates repositores that have new changes. You don't need to pass the `--query` flag anymore as it's saved.:
 
 
 ```
-$ starhook --token=$GITHUB_TOKEN --dir /path/to/repos --query "user:fatih language:go" --sync
+$ starhook --token=$GITHUB_TOKEN --dir /path/to/repos --sync
 ==> querying for latest repositories ...
 ==> last synced: 20 minutes ago
 ==> updates found:
@@ -67,7 +67,7 @@ $ starhook --token=$GITHUB_TOKEN --dir /path/to/repos --query "user:fatih langua
 To list all existing repositories, use the `--list` flag and run the following command:
 
 ```
-$ starhook --token=$GITHUB_TOKEN --dir /path/to/repos --query "user:fatih language:go" --list
+$ starhook --token=$GITHUB_TOKEN --dir /path/to/repos --list
   1 fatih/pool
   2 fatih/set
   3 fatih/structs
