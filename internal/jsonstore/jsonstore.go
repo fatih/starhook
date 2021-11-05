@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
@@ -37,7 +36,7 @@ func NewRepositoryStore(dir, query string) (*RepositoryStore, error) {
 	reposfile := filepath.Join(dir, dbFile)
 
 	// check if the file exists
-	in, err := ioutil.ReadFile(reposfile)
+	in, err := os.ReadFile(reposfile)
 	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
@@ -53,7 +52,7 @@ func NewRepositoryStore(dir, query string) (*RepositoryStore, error) {
 			return nil, err
 		}
 
-		if err := ioutil.WriteFile(reposfile, []byte(out), 0666); err != nil {
+		if err := os.WriteFile(reposfile, []byte(out), 0666); err != nil {
 			return nil, err
 		}
 	} else {
@@ -79,7 +78,7 @@ func (r *RepositoryStore) FindRepos(ctx context.Context, filter internal.Reposit
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	in, err := ioutil.ReadFile(r.path)
+	in, err := os.ReadFile(r.path)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +96,7 @@ func (r *RepositoryStore) FindRepo(ctx context.Context, repoID int64) (*internal
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	in, err := ioutil.ReadFile(r.path)
+	in, err := os.ReadFile(r.path)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +120,7 @@ func (r *RepositoryStore) CreateRepo(ctx context.Context, repo *internal.Reposit
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	in, err := ioutil.ReadFile(r.path)
+	in, err := os.ReadFile(r.path)
 	if err != nil {
 		return 0, err
 	}
@@ -149,7 +148,7 @@ func (r *RepositoryStore) CreateRepo(ctx context.Context, repo *internal.Reposit
 		return 0, err
 	}
 
-	if err := ioutil.WriteFile(r.path, out, 0644); err != nil {
+	if err := os.WriteFile(r.path, out, 0644); err != nil {
 		return 0, err
 	}
 
@@ -160,7 +159,7 @@ func (r *RepositoryStore) UpdateRepo(ctx context.Context, by internal.Repository
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	in, err := ioutil.ReadFile(r.path)
+	in, err := os.ReadFile(r.path)
 	if err != nil {
 		return err
 	}
@@ -216,7 +215,7 @@ func (r *RepositoryStore) UpdateRepo(ctx context.Context, by internal.Repository
 		return err
 	}
 
-	if err := ioutil.WriteFile(r.path, out, 0644); err != nil {
+	if err := os.WriteFile(r.path, out, 0644); err != nil {
 		return err
 	}
 
@@ -227,7 +226,7 @@ func (r *RepositoryStore) DeleteRepo(ctx context.Context, by internal.Repository
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	in, err := ioutil.ReadFile(r.path)
+	in, err := os.ReadFile(r.path)
 	if err != nil {
 		return err
 	}
@@ -263,7 +262,7 @@ func (r *RepositoryStore) DeleteRepo(ctx context.Context, by internal.Repository
 		return err
 	}
 
-	if err := ioutil.WriteFile(r.path, out, 0644); err != nil {
+	if err := os.WriteFile(r.path, out, 0644); err != nil {
 		return err
 	}
 

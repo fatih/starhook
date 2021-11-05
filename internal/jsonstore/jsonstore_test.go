@@ -3,7 +3,7 @@ package jsonstore
 import (
 	"context"
 	"encoding/json"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/fatih/starhook/internal"
@@ -18,7 +18,7 @@ func TestNewRepositoryStore_newFile(t *testing.T) {
 	store, err := NewRepositoryStore(dir, "test:query")
 	c.Assert(err, qt.IsNil)
 
-	out, err := ioutil.ReadFile(store.path)
+	out, err := os.ReadFile(store.path)
 	c.Assert(err, qt.IsNil)
 
 	var db internalDB
@@ -37,14 +37,14 @@ func TestNewRepositoryStore_existingFile(t *testing.T) {
 	}
 
 	content := `{"query": "test:query", "foo":"bar"}`
-	err = ioutil.WriteFile(store.path, []byte(content), 0666)
+	err = os.WriteFile(store.path, []byte(content), 0666)
 	c.Assert(err, qt.IsNil)
 
 	// open again and check whether file content is changed or not
 	_, err = NewRepositoryStore(dir, "test:query")
 	c.Assert(err, qt.IsNil)
 
-	out, err := ioutil.ReadFile(store.path)
+	out, err := os.ReadFile(store.path)
 	c.Assert(err, qt.IsNil)
 
 	var db internalDB
@@ -70,7 +70,7 @@ func TestNewRepositoryStore_CreateRepo(t *testing.T) {
 	c.Assert(err, qt.IsNil)
 	c.Assert(id, qt.Equals, int64(1))
 
-	out, err := ioutil.ReadFile(store.path)
+	out, err := os.ReadFile(store.path)
 	c.Assert(err, qt.IsNil)
 
 	var db internalDB
@@ -107,7 +107,7 @@ func TestNewRepositoryStore_CreateRepo_multiple(t *testing.T) {
 	c.Assert(id2, qt.DeepEquals, int64(2))
 	c.Assert(id3, qt.DeepEquals, int64(3))
 
-	out, err := ioutil.ReadFile(store.path)
+	out, err := os.ReadFile(store.path)
 	c.Assert(err, qt.IsNil)
 
 	var db internalDB
