@@ -64,7 +64,7 @@ func NewRepositoryStore(dir, query string) (*RepositoryStore, error) {
 		}
 
 		if db.Query != query {
-			return nil, fmt.Errorf("store error: query mismatch\n  current: %q\n  passed : %q\n",
+			return nil, fmt.Errorf("store error: query mismatch\n  current: %q\n  passed : %q",
 				db.Query, query)
 		}
 	}
