@@ -12,7 +12,7 @@ import (
 	"github.com/fatih/starhook/internal/jsonstore"
 	"github.com/fatih/starhook/internal/starhook"
 
-	"github.com/google/go-github/v28/github"
+	"github.com/google/go-github/v39/github"
 )
 
 func main() {
@@ -74,7 +74,7 @@ func realMain() error {
 		fmt.Printf("  update : %3d\n", len(update))
 
 		if *dryRun {
-			fmt.Println("\nremove -dry-run to update & clone the repositories")
+			fmt.Println("\nremove the '--dry-run' flag to update & clone the repositories")
 			return nil
 		}
 
@@ -94,7 +94,7 @@ func realMain() error {
 	}
 }
 
-func toRepos(rps []github.Repository) []*internal.Repository {
+func toRepos(rps []*github.Repository) []*internal.Repository {
 	repos := make([]*internal.Repository, 0, len(rps))
 	for _, repo := range rps {
 		owner := repo.GetOwner().GetLogin()

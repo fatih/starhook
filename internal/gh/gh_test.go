@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-github/v28/github"
+	"github.com/google/go-github/v39/github"
 
 	qt "github.com/frankban/quicktest"
 )
@@ -27,7 +27,7 @@ func TestClient_FetchRepos(t *testing.T) {
 	searchService := &mockSearchService{
 		RepositoriesFunc: func(ctx context.Context, query string, opt *github.SearchOptions) (*github.RepositoriesSearchResult, *github.Response, error) {
 			return &github.RepositoriesSearchResult{
-				Repositories: []github.Repository{
+				Repositories: []*github.Repository{
 					{
 						Name: &repoName1,
 					},
@@ -60,7 +60,10 @@ func TestClient_Branch(t *testing.T) {
 	updatedAt := time.Now()
 
 	repoService := &mockRepositoriesService{
-		GetBranchFunc: func(ctx context.Context, owner, repo, branch string) (*github.Branch, *github.Response, error) {
+		GetBranchFunc: func(ctx context.Context, owner, repo, branch string, followRedirects bool) (*github.Branch, *github.Response, error) {
+
+			c.Assert(followRedirects, qt.IsTrue)
+
 			return &github.Branch{
 				Commit: &github.RepositoryCommit{
 					SHA: &wantSHA,
@@ -90,14 +93,14 @@ func TestClient_Branch(t *testing.T) {
 }
 
 type mockRepositoriesService struct {
-	GetBranchFunc    func(ctx context.Context, owner, repo, branch string) (*github.Branch, *github.Response, error)
+	GetBranchFunc    func(ctx context.Context, owner, repo, branch string, followRedirects bool) (*github.Branch, *github.Response, error)
 	GetBranchInvoked bool
 }
 
-func (m *mockRepositoriesService) GetBranch(ctx context.Context, owner, repo, branch string) (*github.Branch, *github.Response, error) {
+func (m *mockRepositoriesService) GetBranch(ctx context.Context, owner, repo, branch string, followRedirects bool) (*github.Branch, *github.Response, error) {
 	m.GetBranchInvoked = true
 	if m.GetBranchFunc != nil {
-		return m.GetBranchFunc(ctx, owner, repo, branch)
+		return m.GetBranchFunc(ctx, owner, repo, branch, followRedirects)
 	}
 	return nil, &github.Response{}, nil
 }
