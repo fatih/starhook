@@ -24,7 +24,7 @@ func main() {
 
 func realMain() error {
 	var (
-		token      = flag.String("token", "", "github token, i.e: GITHUB_TOKEN")
+		token      = flag.String("token", os.Getenv("GITHUB_TOKEN"), "github token, i.e: GITHUB_TOKEN")
 		dir        = flag.String("dir", "repos", "path to download the repositories")
 		query      = flag.String("query", "user:fatih language:go", "query to fetch")
 		sync       = flag.Bool("sync", false, "sync db & update the local repositores for the given query")

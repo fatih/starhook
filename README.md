@@ -27,14 +27,17 @@ $ starhook --token=$GITHUB_TOKEN --dir /path/to/repos --query "user:fatih langua
 remove -dry-run to update & clone the repositories
 ```
 
-This command will all repositories that belongs to user `fatih`
-and are classified as `go` programming language. For more information about the `query` parameter, checkout https://docs.github.com/en/search-github/getting-started-with-searching-on-github/about-searching-on-github. As you see, it found `29` repositories.
-
+As you see, it found `29` repositories. This command will all repositories that
+belongs to user `fatih` and are classified as `go` programming language. For
+more information about the `query` parameter, checkout
+https://docs.github.com/en/search-github/getting-started-with-searching-on-github/about-searching-on-github. 
 
 Now, let's remove the `--dry-run` flag. `starhook` will execute the query and clone the repositories: 
 
+You can also remove the `--token` flag if you set the `GITHUB_TOKEN` environment variable.
+
 ```
-$ starhook --token=$GITHUB_TOKEN --dir /path/to/repos --query "user:fatih language:go" --sync
+$ starhook --dir /path/to/repos --query "user:fatih language:go" --sync
 ==> querying for latest repositories ...
 ==> last synced: a long while ago
 ==> updates found:
@@ -51,7 +54,7 @@ To update existing repositories, just run the same command. `starhook` only upda
 
 
 ```
-$ starhook --token=$GITHUB_TOKEN --dir /path/to/repos --sync
+$ starhook --dir /path/to/repos --sync
 ==> querying for latest repositories ...
 ==> last synced: 20 minutes ago
 ==> updates found:
@@ -67,7 +70,7 @@ $ starhook --token=$GITHUB_TOKEN --dir /path/to/repos --sync
 To list all existing repositories, use the `--list` flag and run the following command:
 
 ```
-$ starhook --token=$GITHUB_TOKEN --dir /path/to/repos --list
+$ starhook --dir /path/to/repos --list
   1 fatih/pool
   2 fatih/set
   3 fatih/structs
@@ -83,6 +86,6 @@ $ starhook --token=$GITHUB_TOKEN --dir /path/to/repos --list
 To delete a repository from the local storage, pass the `id` from the list:
 
 ```
-$ starhook --token=$GITHUB_TOKEN --dir /path/to/repos --delete 3
+$ starhook --dir /path/to/repos --delete 3
 ==> removed repository: "fatih/structs"
 ```
