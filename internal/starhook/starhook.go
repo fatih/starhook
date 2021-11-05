@@ -17,15 +17,9 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-type result struct {
-	updated bool
-	created bool
-}
-
 type Service struct {
 	client *gh.Client
 	dir    string
-	update bool
 	store  internal.RepositoryStore
 }
 
