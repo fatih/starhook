@@ -1,9 +1,9 @@
-name: build
+name: "CI"
 on: [push, pull_request]
-jobs:
 
-  test-build:
-    name: Test & Build
+jobs:
+  ci:
+    name: "Run CI"
     runs-on: ubuntu-latest
     steps:
 
@@ -20,6 +20,14 @@ jobs:
       run: |
         go mod tidy -v
         go test -race ./...
+
+    - run: "go vet ./..."
+
+    - name: Staticcheck
+      uses: dominikh/staticcheck-action@v1.1.0
+      with:
+        version: "2021.1.1"
+        install-go: false
 
     - name: Build
       run: go build ./...
