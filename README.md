@@ -14,10 +14,17 @@ go get github.com/fatih/starhook/cmd/starhook
 
 ### Initialize & clone repositories
 
-Initialize and sync the repositories. Let's run first with the `--dry-run` flag to see what is `starhook` planning to do:
+First, let us initialize starhook to sync the repositories. Pass the GitHub token, the location to store your repositories and the query needed to fetch the repositories:
 
 ```
-$ starhook --token=$GITHUB_TOKEN --dir /path/to/repos --query "user:fatih language:go" --dry-run --sync
+$ starhook init --token=$GITHUB_TOKEN --dir /path/to/repos --query "user:fatih language:go" 
+starhook is initialized. Please run 'starhook sync' to download and sync you repositories.
+```
+
+Now, let's clone the repositories  with the `--dry-run` flag to see what is `starhook` planning to do:
+
+```
+$ starhook sync --dry-run
 ==> querying for latest repositories ...
 ==> last synced: a long while ago
 ==> updates found:
@@ -34,10 +41,8 @@ https://docs.github.com/en/search-github/getting-started-with-searching-on-githu
 
 Now, let's remove the `--dry-run` flag. `starhook` will execute the query and clone the repositories: 
 
-You can also remove the `--token` flag if you set the `GITHUB_TOKEN` environment variable.
-
 ```
-$ starhook --dir /path/to/repos --query "user:fatih language:go" --sync
+$ starhook sync
 ==> querying for latest repositories ...
 ==> last synced: a long while ago
 ==> updates found:
@@ -50,11 +55,11 @@ $ starhook --dir /path/to/repos --query "user:fatih language:go" --sync
 
 ### Update repositories
 
-To update existing repositories, just run the same command. `starhook` only updates repositores that have new changes. You don't need to pass the `--query` flag anymore as it's saved.:
+To update existing repositories, just run the `sync` subcommand. `starhook` only updates repositores that have new changes:
 
 
 ```
-$ starhook --dir /path/to/repos --sync
+$ starhook sync
 ==> querying for latest repositories ...
 ==> last synced: 20 minutes ago
 ==> updates found:
@@ -67,10 +72,10 @@ $ starhook --dir /path/to/repos --sync
 
 ### List repositories
 
-To list all existing repositories, use the `--list` flag and run the following command:
+To list all existing repositories, use the `list` subcommand and run the following command:
 
 ```
-$ starhook --dir /path/to/repos --list
+$ starhook list
   1 fatih/pool
   2 fatih/set
   3 fatih/structs
@@ -83,9 +88,9 @@ $ starhook --dir /path/to/repos --list
 
 ### Delete repositories
 
-To delete a repository from the local storage, pass the `id` from the list:
+To delete a repository from the local storage, use the `delete` subcommand with the `--id` flag:
 
 ```
-$ starhook --dir /path/to/repos --delete 3
+$ starhook delete --id 3
 ==> removed repository: "fatih/structs"
 ```
