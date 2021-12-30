@@ -30,7 +30,8 @@ type RepositoryStore struct {
 
 func NewRepositoryStore(dir, query string) (*RepositoryStore, error) {
 	if _, err := os.Stat(dir); err != nil {
-		return nil, fmt.Errorf("dir %q does not exist", err)
+		fmt.Printf("err = %+v\n", err)
+		return nil, fmt.Errorf("dir %q does not exist", dir)
 	}
 
 	reposfile := filepath.Join(dir, dbFile)

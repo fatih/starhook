@@ -14,9 +14,9 @@ import (
 	"github.com/peterbourgon/ff/v3/ffcli"
 )
 
-// Config for the root command, including flags and types that should be
+// RootConfig for the root command, including flags and types that should be
 // available to each subcommand.
-type Config struct {
+type RootConfig struct {
 	Verbose bool
 
 	Service *starhook.Service
@@ -31,10 +31,10 @@ func Run() error {
 	)
 
 	rootCommand.Subcommands = []*ffcli.Command{
-		listCmd(rootConfig, out),
 		deleteCmd(rootConfig, out),
+		configCmd(rootConfig, out),
+		listCmd(rootConfig, out),
 		syncCmd(rootConfig, out),
-		initCmd(rootConfig, out),
 	}
 
 	return rootCommand.ParseAndRun(ctx, os.Args[1:])
@@ -43,8 +43,8 @@ func Run() error {
 // newRootCommand constructs a usable ffcli.Command and an empty Config. The config's token
 // and verbose fields will be set after a successful parse. The caller must
 // initialize the config's object API client field.
-func newRootCommand() (*ffcli.Command, *Config) {
-	var cfg Config
+func newRootCommand() (*ffcli.Command, *RootConfig) {
+	var cfg RootConfig
 
 	fs := flag.NewFlagSet("starhook", flag.ExitOnError)
 	cfg.RegisterFlags(fs)
@@ -66,13 +66,13 @@ func newRootCommand() (*ffcli.Command, *Config) {
 // helper function allows subcommands to register the root flags into their
 // flagsets, creating "global" flags that can be passed after any subcommand at
 // the commandline.
-func (c *Config) RegisterFlags(fs *flag.FlagSet) {
+func (c *RootConfig) RegisterFlags(fs *flag.FlagSet) {
 	fs.BoolVar(&c.Verbose, "v", false, "log verbose output")
 	_ = fs.String("config", "", "config file (optional)")
 }
 
 // Exec function for this command.
-func (c *Config) Exec(context.Context, []string) error {
+func (c *RootConfig) Exec(context.Context, []string) error {
 	// The root command has no meaning, so if it gets executed,
 	// display the usage text to the user instead.
 	return flag.ErrHelp
@@ -84,13 +84,18 @@ func newStarHookService() (*starhook.Service, error) {
 		return nil, err
 	}
 
-	ctx := context.Background()
-	ghClient := gh.NewClient(ctx, cfg.Token)
-
-	store, err := jsonstore.NewRepositoryStore(cfg.ReposDir, cfg.Query)
+	rs, err := cfg.SelectedRepoSet()
 	if err != nil {
 		return nil, err
 	}
 
-	return starhook.NewService(ghClient, store, cfg.ReposDir), nil
+	ctx := context.Background()
+	ghClient := gh.NewClient(ctx, rs.Token)
+
+	store, err := jsonstore.NewRepositoryStore(rs.ReposDir, rs.Query)
+	if err != nil {
+		return nil, err
+	}
+
+	return starhook.NewService(ghClient, store, rs.ReposDir), nil
 }

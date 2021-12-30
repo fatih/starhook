@@ -5,6 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 
 	"github.com/fatih/starhook/internal"
 	"github.com/fatih/starhook/internal/config"
@@ -15,16 +17,17 @@ import (
 	"github.com/peterbourgon/ff/v3/ffcli"
 )
 
-// Sync is the config for the list subcommand, including a reference to the
+// Sync is the config for the sync subcommand, including a reference to the
 // global config, for access to global flags.
 type Sync struct {
-	rootConfig *Config
+	rootConfig *RootConfig
 	out        io.Writer
 
 	dryRun bool
+	force  bool
 }
 
-func syncCmd(rootConfig *Config, out io.Writer) *ffcli.Command {
+func syncCmd(rootConfig *RootConfig, out io.Writer) *ffcli.Command {
 	cfg := Sync{
 		rootConfig: rootConfig,
 		out:        out,
@@ -32,6 +35,7 @@ func syncCmd(rootConfig *Config, out io.Writer) *ffcli.Command {
 
 	fs := flag.NewFlagSet("starhook sync", flag.ExitOnError)
 	fs.BoolVar(&cfg.dryRun, "dry-run", false, "dry-run the given action")
+	fs.BoolVar(&cfg.force, "force", false, "override existing repository directory")
 
 	rootConfig.RegisterFlags(fs)
 
@@ -51,17 +55,26 @@ func (c *Sync) Exec(ctx context.Context, _ []string) error {
 		return err
 	}
 
-	ghClient := gh.NewClient(ctx, cfg.Token)
-
-	store, err := jsonstore.NewRepositoryStore(cfg.ReposDir, cfg.Query)
+	rs, err := cfg.SelectedRepoSet()
 	if err != nil {
 		return err
 	}
 
-	svc := starhook.NewService(ghClient, store, cfg.ReposDir)
+	ghClient := gh.NewClient(ctx, rs.Token)
+
+	if err := os.MkdirAll(filepath.Dir(rs.ReposDir), 0700); err != nil {
+		return err
+	}
+
+	store, err := jsonstore.NewRepositoryStore(rs.ReposDir, rs.Query)
+	if err != nil {
+		return err
+	}
+
+	svc := starhook.NewService(ghClient, store, rs.ReposDir)
 
 	fmt.Fprintln(c.out, "==> querying for latest repositories ...")
-	ghRepos, err := ghClient.FetchRepos(ctx, cfg.Query)
+	ghRepos, err := ghClient.FetchRepos(ctx, rs.Query)
 	if err != nil {
 		return err
 	}
