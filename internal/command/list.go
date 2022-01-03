@@ -11,14 +11,14 @@ import (
 // List is the config for the list subcommand, including a reference to the
 // global config, for access to global flags.
 type List struct {
-	rootConfig *Config
+	rootConfig *RootConfig
 	out        io.Writer
 
 	withAccessTimes bool
 }
 
 // New creates a new ffcli.Command for the list subcommand.
-func listCmd(rootConfig *Config, out io.Writer) *ffcli.Command {
+func listCmd(rootConfig *RootConfig, out io.Writer) *ffcli.Command {
 	cfg := List{
 		rootConfig: rootConfig,
 		out:        out,

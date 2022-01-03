@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -17,6 +16,20 @@ const (
 
 // Config defines a physical configuration file on the host.
 type Config struct {
+	// Selected defines the name of the selected config.
+	Selected string `json:"selected"`
+
+	RepoSets []*RepoSet `json:"repo_sets"`
+
+	path string `json:"-"`
+}
+
+// RepoSet defines a single configuration that represents a set of repositories
+// and the query used to fetch the repositories
+type RepoSet struct {
+	// Name is a logical name to represent this config.
+	Name string `json:"name"`
+
 	// Query defines the GitHub query to fetch the repositories.
 	Query string `json:"query"`
 
@@ -25,12 +38,36 @@ type Config struct {
 
 	// Token is used to communicate with the GitHub API
 	Token string `json:"token"`
-
-	path string `json:"-"`
 }
 
-// Load loads the configuration from its standad path.
+// Load loads the configuration from its standard path.
 func Load() (*Config, error) {
+	path, err := configPath()
+	if err != nil {
+		return nil, err
+	}
+
+	out, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("config file doesn't exist: %w", err)
+		}
+		return nil, err
+	}
+
+	var cfg *Config
+	err = json.Unmarshal(out, &cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	cfg.path = path
+	return cfg, nil
+}
+
+// Create creates a new, empty configuration file. The user should populate the
+// config afterwards.
+func Create() (*Config, error) {
 	path, err := configPath()
 	if err != nil {
 		return nil, err
@@ -54,39 +91,72 @@ func Load() (*Config, error) {
 	return cfg, nil
 }
 
-// Write writes the given config to local filesystem. If the file exists, it
-// returns a ErrExists error. To overwrite the existing file, pass
-// 'overwrite'.
-func Write(cfg *Config, overwrite bool) error {
+// Path returns the absolute path of the config file's location.
+func (c *Config) Path() string {
+	return c.path
+}
+
+// SelectedRepoSet returns the selected reposet, if available
+func (c *Config) SelectedRepoSet() (*RepoSet, error) {
+	var rs *RepoSet
+	for _, r := range c.RepoSets {
+		if r.Name == c.Selected {
+			rs = r
+		}
+	}
+
+	if rs == nil {
+		return nil, fmt.Errorf("couldn't find repo set configuration for %q", c.Selected)
+	}
+
+	return rs, nil
+}
+
+func (c *Config) AddRepoSet(rs *RepoSet, force bool) error {
+	hasRepoSet := false
+
+	for i, set := range c.RepoSets {
+		if set.Name == rs.Name {
+			hasRepoSet = true
+
+			if force {
+				c.RepoSets[i] = rs // overwrite
+			} else {
+				return fmt.Errorf("repo set with name %q already exists", rs.Name)
+			}
+		}
+	}
+
+	// if there is no such repo set, add it
+	if !hasRepoSet {
+		c.RepoSets = append(c.RepoSets, rs)
+	}
+
+	return nil
+}
+
+// Save writes the config back to the local filesystem
+func (c *Config) Save() error {
 	path, err := configPath()
 	if err != nil {
 		return err
 	}
 
-	// it's safe to write if:
-	// * the file doesn't exist
-	// * the file exist and we allow to overwrite
-	_, err = os.ReadFile(path)
-	if errors.Is(err, fs.ErrNotExist) || (errors.Is(err, fs.ErrExist) && overwrite) {
-		out, err := json.Marshal(cfg)
-		if err != nil {
-			return err
-		}
-
-		if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
-			return err
-		}
-
-		err = os.WriteFile(path, out, 0600)
-		if err != nil {
-			fmt.Printf("err = %+v\n", err)
-			return err
-		}
-
-		return nil
+	out, err := json.Marshal(c)
+	if err != nil {
+		return err
 	}
 
-	return err
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		return err
+	}
+
+	err = os.WriteFile(path, out, 0600)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func configPath() (string, error) {
@@ -108,9 +178,4 @@ func configPath() (string, error) {
 
 	path := filepath.Join(systemDir, configDir, configFile)
 	return path, nil
-}
-
-// Path returns the absolute path of the config file's location.
-func (c *Config) Path() string {
-	return c.path
 }

@@ -14,11 +14,16 @@ go get github.com/fatih/starhook/cmd/starhook
 
 ### Initialize & clone repositories
 
-First, let us initialize starhook to sync the repositories. Pass the GitHub token, the location to store your repositories and the query needed to fetch the repositories:
+First, let us initialize starhook to sync the repositories. A set of repositories is called a `reposet` and you can have multiple reposets based on different queries or even GitHub tokens. Let's start adding our first `reposet`.
+
+Pass the GitHub token, the location to store your repositories and the query needed to fetch the repositories:
 
 ```
-$ starhook init --token=$GITHUB_TOKEN --dir /path/to/repos --query "user:fatih language:go" 
-starhook is initialized. Please run 'starhook sync' to download and sync you repositories.
+$ mkdir -p /path/to/repos
+$ starhook config add --token=$GITHUB_TOKEN --dir /path/to/repos --query "user:fatih language:go" 
+starhook is initialized (config name: 'wonderful-star')
+
+Please run 'starhook sync' to download and sync you repositories.
 ```
 
 Now, let's clone the repositories  with the `--dry-run` flag to see what is `starhook` planning to do:
@@ -94,3 +99,65 @@ To delete a repository from the local storage, use the `delete` subcommand with 
 $ starhook delete --id 3
 ==> removed repository: "fatih/structs"
 ```
+
+### Create a second reposet
+
+As we said earlier, we can manage multiple `reposet`'s. Let's create another reposet, but this time for repositories that are written in VimScript:
+
+```
+$ mkdir -p /path/to/repos
+$ starhook config add --token=$GITHUB_TOKEN --dir /path/to/viml-repos --query "user:fatih language:viml" 
+starhook is initialized (config name: 'shining-moon')
+
+Please run 'starhook sync' to download and sync you repositories.
+```
+
+Let's see all current reposets:
+
+```
+$ starhook config list
+Name                     wonderful-star
+Query                    user:fatih language:go
+Repositories Directory   /path/to/repos
+
+Name                     shining-moon
+Query                    user:fatih language:viml
+Repositories Directory   /path/to/viml-repos
+```
+
+Let's show the current selected reposet configuration:
+
+
+```
+$ starhook config show
+Name                     wonderful-star
+Query                    user:fatih language:go
+Repositories Directory   /path/to/repos
+```
+
+
+To use the new reposet, we need to switch and sync the new `reposet`:
+
+```
+$ starhook config switch shining-moon
+Switched to 'shining-moon'
+
+$ starhook sync
+==> querying for latest repositories ...
+==> last synced: a long while ago
+==> updates found:
+  clone  :   5
+  update :   0
+  cloning vim-hclfmt
+  cloning vim-go-tutorial
+  cloning vim-nginx
+  cloning vim-go
+  cloning dotfiles
+  "vim-go" is created
+  "dotfiles" is created
+  "vim-hclfmt" is created
+  "vim-go-tutorial" is created
+  "vim-nginx" is created
+==> cloned: 5 repositories (elapsed time: 2.279053145s)
+```
+

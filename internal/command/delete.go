@@ -2,23 +2,24 @@ package command
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"io"
 
 	"github.com/peterbourgon/ff/v3/ffcli"
 )
 
-// Delete is the config for the list subcommand, including a reference to the
+// Delete is the config for the delete subcommand, including a reference to the
 // global config, for access to global flags.
 type Delete struct {
-	rootConfig *Config
+	rootConfig *RootConfig
 	out        io.Writer
 
 	id int64
 }
 
 // New creates a new ffcli.Command for the list subcommand.
-func deleteCmd(rootConfig *Config, out io.Writer) *ffcli.Command {
+func deleteCmd(rootConfig *RootConfig, out io.Writer) *ffcli.Command {
 	cfg := Delete{
 		rootConfig: rootConfig,
 		out:        out,
@@ -40,6 +41,10 @@ func deleteCmd(rootConfig *Config, out io.Writer) *ffcli.Command {
 
 // Exec function for this command.
 func (c *Delete) Exec(ctx context.Context, _ []string) error {
+	if c.id == 0 {
+		return errors.New("--id should be set")
+	}
+
 	svc, err := newStarHookService()
 	if err != nil {
 		return err
