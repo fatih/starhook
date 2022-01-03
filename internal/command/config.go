@@ -134,7 +134,7 @@ func configAddCmd(rootConfig *RootConfig, out io.Writer) *ffcli.Command {
 				return err
 			}
 
-			fmt.Fprintf(out, "starhook is initialized (config name: %q)\n\nPlease run 'starhook sync' to download and sync your repositories.\n", name)
+			fmt.Fprintf(out, "starhook is initialized (config name: %q)\n\nPlease run 'starhook config switch %s && starhook sync' to download and sync your repositories.\n", name, name)
 			return nil
 		},
 	}

@@ -105,11 +105,11 @@ $ starhook delete --id 3
 As we said earlier, we can manage multiple `reposet`'s. Let's create another reposet, but this time for repositories that are written in VimScript:
 
 ```
-$ mkdir -p /path/to/repos
+$ mkdir -p /path/to/viml-repos
 $ starhook config add --token=$GITHUB_TOKEN --dir /path/to/viml-repos --query "user:fatih language:viml" 
 starhook is initialized (config name: 'shining-moon')
 
-Please run 'starhook sync' to download and sync you repositories.
+Please run 'starhook config switch shining-moon && starhook sync' to download and sync you repositories.
 ```
 
 Let's see all current reposets:
