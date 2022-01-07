@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 
 	"github.com/peterbourgon/ff/v3/ffcli"
@@ -50,5 +51,11 @@ func (c *Delete) Exec(ctx context.Context, _ []string) error {
 		return err
 	}
 
-	return svc.DeleteRepo(ctx, c.id)
+	err = svc.DeleteRepo(ctx, c.id)
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintln(c.out, "==> repository removed")
+	return nil
 }
