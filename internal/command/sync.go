@@ -7,7 +7,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/fatih/starhook/internal"
 	"github.com/fatih/starhook/internal/config"
 	"github.com/fatih/starhook/internal/gh"
@@ -80,14 +82,29 @@ func (c *Sync) Exec(ctx context.Context, _ []string) error {
 	}
 	fetchedRepos := toRepos(ghRepos)
 
-	if err := svc.SyncRepos(ctx, fetchedRepos); err != nil {
-		return err
-	}
-
-	clone, update, err := svc.ReposToUpdate(ctx)
+	currentRepos, err := svc.ListRepos(ctx)
 	if err != nil {
 		return err
 	}
+
+	lastSynced := time.Time{}
+	for _, repo := range currentRepos {
+		if repo.SyncedAt.After(lastSynced) {
+			lastSynced = repo.SyncedAt
+		}
+	}
+
+	fmt.Printf("==> last synced: %s\n", humanize.Time(lastSynced))
+
+	if err := svc.SyncRepos(ctx, currentRepos, fetchedRepos); err != nil {
+		return err
+	}
+
+	clone, update, err := svc.ReposToUpdate(ctx, currentRepos)
+	if err != nil {
+		return err
+	}
+
 	total := len(clone) + len(update)
 	if total == 0 {
 		fmt.Fprintf(c.out, "==> everything is up-to-date")
@@ -103,12 +120,25 @@ func (c *Sync) Exec(ctx context.Context, _ []string) error {
 		return nil
 	}
 
+	start := time.Now()
 	if err := svc.CloneRepos(ctx, clone); err != nil {
 		return err
 	}
+	fmt.Printf("==> cloned: %d repositories (elapsed time: %s)\n",
+		len(clone), time.Since(start).String())
+
+	start = time.Now()
 	if err := svc.UpdateRepos(ctx, update); err != nil {
 		return err
 	}
+
+	for _, repo := range update {
+		fmt.Printf("  %q is updated (last updated: %s)\n",
+			repo.Name, humanize.Time(repo.SyncedAt))
+
+	}
+	fmt.Printf("==> updated: %d repositories (elapsed time: %s)\n",
+		len(update), time.Since(start).String())
 
 	return nil
 }

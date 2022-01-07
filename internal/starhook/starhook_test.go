@@ -19,19 +19,22 @@ func TestNewService(t *testing.T) {
 func TestService_ListRepos(t *testing.T) {
 	c := qt.New(t)
 	ctx := context.Background()
+	repos := []*internal.Repository{
+		{ID: 1},
+		{ID: 2},
+	}
 
 	store := &mock.RepositoryStore{
 		FindReposFn: func(ctx context.Context, filter internal.RepositoryFilter, opt internal.FindOptions) ([]*internal.Repository, error) {
-			return []*internal.Repository{
-				{ID: 1},
-				{ID: 2},
-			}, nil
+			return repos, nil
 		},
 	}
 
 	svc := NewService(nil, store, "")
 
-	err := svc.ListRepos(ctx)
+	resp, err := svc.ListRepos(ctx)
+
 	c.Assert(err, qt.IsNil)
+	c.Assert(resp, qt.DeepEquals, repos)
 	c.Assert(store.FindReposInvoked, qt.IsTrue, qt.Commentf("FindRepos() should be called"))
 }

@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/dustin/go-humanize"
 	"github.com/fatih/starhook/internal"
 	"github.com/fatih/starhook/internal/gh"
 	"github.com/fatih/starhook/internal/git"
@@ -48,48 +47,19 @@ func (s *Service) DeleteRepo(ctx context.Context, repoID int64) error {
 		return err
 	}
 
-	fmt.Printf("==> removed repository: %q\n", repo.Nwo)
 	return nil
 }
 
 // ListRepos lists all the repositories.
-func (s *Service) ListRepos(ctx context.Context) error {
-	repos, err := s.store.FindRepos(ctx, internal.RepositoryFilter{}, internal.DefaultFindOptions)
-	if err != nil {
-		return err
-	}
-
-	lastUpdated := time.Time{}
-	for _, repo := range repos {
-		if repo.UpdatedAt.After(lastUpdated) {
-			lastUpdated = repo.UpdatedAt
-		}
-		fmt.Printf("%3d %s\n", repo.ID, repo.Nwo)
-	}
-
-	fmt.Printf("==> local %d repositories (last synced: %s)\n", len(repos), humanize.Time(lastUpdated))
-	return nil
+func (s *Service) ListRepos(ctx context.Context) ([]*internal.Repository, error) {
+	return s.store.FindRepos(ctx, internal.RepositoryFilter{}, internal.DefaultFindOptions)
 }
 
 // ReposToUpdate returns the repositories to clone or update.
-func (s *Service) ReposToUpdate(ctx context.Context) ([]*internal.Repository, []*internal.Repository, error) {
-	repos, err := s.store.FindRepos(ctx, internal.RepositoryFilter{}, internal.DefaultFindOptions)
-	if err != nil {
-		return nil, nil, err
-	}
-
+func (s *Service) ReposToUpdate(ctx context.Context, repos []*internal.Repository) ([]*internal.Repository, []*internal.Repository, error) {
 	if len(repos) == 0 {
-		return nil, nil, errors.New("no repositories to update, please sync first")
+		return nil, nil, errors.New("no repositories to update")
 	}
-
-	lastSynced := time.Time{}
-	for _, repo := range repos {
-		if repo.SyncedAt.After(lastSynced) {
-			lastSynced = repo.SyncedAt
-		}
-	}
-
-	fmt.Printf("==> last synced: %s\n", humanize.Time(lastSynced))
 
 	var (
 		clone  []*internal.Repository
@@ -117,8 +87,6 @@ func (s *Service) CloneRepos(ctx context.Context, repos []*internal.Repository) 
 		return nil
 	}
 
-	start := time.Now()
-
 	const maxWorkers = 10
 	sem := semaphore.NewWeighted(maxWorkers)
 
@@ -128,8 +96,7 @@ func (s *Service) CloneRepos(ctx context.Context, repos []*internal.Repository) 
 
 		err := sem.Acquire(ctx, 1)
 		if err != nil {
-			fmt.Printf("acquire err = %+v\n", err)
-			break
+			return fmt.Errorf("couldn't acquire semaphore: %s", err)
 		}
 
 		g.Go(func() error {
@@ -139,11 +106,10 @@ func (s *Service) CloneRepos(ctx context.Context, repos []*internal.Repository) 
 	}
 
 	if err := g.Wait(); err != nil {
-		fmt.Printf("g.Wait() err = %+v\n", err)
+		return fmt.Errorf("errgroup wait err: %s ", err)
 	}
 
 	for _, repo := range repos {
-		fmt.Printf("  %q is created\n", repo.Name)
 		now := time.Now().UTC()
 		err := s.store.UpdateRepo(ctx,
 			internal.RepositoryBy{
@@ -157,8 +123,6 @@ func (s *Service) CloneRepos(ctx context.Context, repos []*internal.Repository) 
 			return err
 		}
 	}
-	fmt.Printf("==> cloned: %d repositories (elapsed time: %s)\n",
-		len(repos), time.Since(start).String())
 
 	return nil
 }
@@ -169,8 +133,6 @@ func (s *Service) UpdateRepos(ctx context.Context, repos []*internal.Repository)
 		return nil
 	}
 
-	start := time.Now()
-
 	const maxWorkers = 10
 	sem := semaphore.NewWeighted(maxWorkers)
 
@@ -180,8 +142,7 @@ func (s *Service) UpdateRepos(ctx context.Context, repos []*internal.Repository)
 
 		err := sem.Acquire(ctx, 1)
 		if err != nil {
-			fmt.Printf("acquire err = %+v\n", err)
-			break
+			return fmt.Errorf("couldn't acquire semaphore: %s", err)
 		}
 
 		g.Go(func() error {
@@ -191,13 +152,10 @@ func (s *Service) UpdateRepos(ctx context.Context, repos []*internal.Repository)
 	}
 
 	if err := g.Wait(); err != nil {
-		fmt.Printf("update repos g.Wait() err = %+v\n", err)
+		return fmt.Errorf("errgroup wait err: %s ", err)
 	}
 
 	for _, repo := range repos {
-		fmt.Printf("  %q is updated (last updated: %s)\n",
-			repo.Name, humanize.Time(repo.SyncedAt))
-
 		now := time.Now().UTC()
 		err := s.store.UpdateRepo(ctx,
 			internal.RepositoryBy{
@@ -212,19 +170,11 @@ func (s *Service) UpdateRepos(ctx context.Context, repos []*internal.Repository)
 		}
 	}
 
-	fmt.Printf("==> updated: %d repositories (elapsed time: %s)\n",
-		len(repos), time.Since(start).String())
-
 	return nil
 }
 
-// SyncRepos syncs the remote repositories metadata with the store data.
-func (s *Service) SyncRepos(ctx context.Context, fetchedRepos []*internal.Repository) error {
-	repos, err := s.store.FindRepos(ctx, internal.RepositoryFilter{}, internal.DefaultFindOptions)
-	if err != nil {
-		return err
-	}
-
+// SyncRepos syncs the repost in the store, with the fetched remote repositories.
+func (s *Service) SyncRepos(ctx context.Context, repos, fetchedRepos []*internal.Repository) error {
 	localRepos := make(map[string]*internal.Repository, len(repos))
 	for _, repo := range repos {
 		localRepos[repo.Nwo] = repo
@@ -239,8 +189,7 @@ func (s *Service) SyncRepos(ctx context.Context, fetchedRepos []*internal.Reposi
 		repo := repo
 
 		if err := sem.Acquire(ctx, 1); err != nil {
-			fmt.Printf("acquire err = %+v\n", err)
-			break
+			return fmt.Errorf("couldn't acquire semaphore: %s", err)
 		}
 
 		g.Go(func() error {
@@ -315,7 +264,6 @@ func (s *Service) cloneRepo(ctx context.Context, repo *internal.Repository) erro
 	}
 
 	cloneURL := fmt.Sprintf("https://github.com/%s/%s.git", repo.Owner, repo.Name)
-	fmt.Printf("  cloning %s\n", repo.Name)
 	g := &git.Client{}
 	_, err := g.Run("clone", cloneURL, "--depth=1", repoDir)
 	if err != nil {

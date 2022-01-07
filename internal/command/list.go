@@ -3,8 +3,11 @@ package command
 import (
 	"context"
 	"flag"
+	"fmt"
 	"io"
+	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/peterbourgon/ff/v3/ffcli"
 )
 
@@ -45,5 +48,21 @@ func (c *List) Exec(ctx context.Context, _ []string) error {
 		return err
 	}
 
-	return svc.ListRepos(ctx)
+	repos, err := svc.ListRepos(ctx)
+	if err != nil {
+		return err
+	}
+
+	lastUpdated := time.Time{}
+	for _, repo := range repos {
+		if repo.UpdatedAt.After(lastUpdated) {
+			lastUpdated = repo.UpdatedAt
+		}
+		fmt.Printf("%3d %s\n", repo.ID, repo.Nwo)
+	}
+
+	fmt.Fprintf(c.out, "==> local %d repositories (last synced: %s)\n", len(repos), humanize.Time(lastUpdated))
+
+	return nil
+
 }
