@@ -12,7 +12,7 @@ import (
 
 func TestNewService(t *testing.T) {
 	c := qt.New(t)
-	svc := NewService(nil, nil, "")
+	svc := NewService(nil, nil, nil)
 	c.Assert(svc, qt.Not(qt.IsNil), qt.Commentf("service should be not nil"))
 }
 
@@ -24,13 +24,15 @@ func TestService_ListRepos(t *testing.T) {
 		{ID: 2},
 	}
 
-	store := &mock.RepositoryStore{
+	store := &mock.MetadataStore{
 		FindReposFn: func(ctx context.Context, filter internal.RepositoryFilter, opt internal.FindOptions) ([]*internal.Repository, error) {
 			return repos, nil
 		},
 	}
 
-	svc := NewService(nil, store, "")
+	fsstore := &mock.RepositoryStore{}
+
+	svc := NewService(nil, store, fsstore)
 
 	resp, err := svc.ListRepos(ctx)
 

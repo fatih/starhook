@@ -47,7 +47,8 @@ type RepositoryBy struct {
 	Name   *string
 }
 
-type RepositoryStore interface {
+// MetadataStore manages the information about repositories.
+type MetadataStore interface {
 	// FindRepositories returns a list of repositories
 	FindRepos(ctx context.Context, filter RepositoryFilter, opt FindOptions) ([]*Repository, error)
 
@@ -62,6 +63,18 @@ type RepositoryStore interface {
 
 	// DeleteRepo deletes a single repository
 	DeleteRepo(ctx context.Context, by RepositoryBy) error
+}
+
+// RepositoryStore manages the repositories on a filesystem.
+type RepositoryStore interface {
+	// CreateRepos creates a single repository.
+	CreateRepo(ctx context.Context, repo *Repository) error
+
+	// CreateRepos updates a single repository.
+	UpdateRepo(ctx context.Context, repo *Repository) error
+
+	// DeleteRepo deletes a single repository.
+	DeleteRepo(ctx context.Context, repo *Repository) error
 }
 
 // DefaultFindOptions is the default option to be used with Find* methods
