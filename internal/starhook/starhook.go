@@ -19,10 +19,10 @@ import (
 type Service struct {
 	client *gh.Client
 	dir    string
-	store  internal.RepositoryStore
+	store  internal.MetadataStore
 }
 
-func NewService(ghClient *gh.Client, store internal.RepositoryStore, dir string) *Service {
+func NewService(ghClient *gh.Client, store internal.MetadataStore, dir string) *Service {
 	return &Service{
 		client: ghClient,
 		dir:    dir,

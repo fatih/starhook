@@ -92,7 +92,7 @@ func newStarHookService() (*starhook.Service, error) {
 	ctx := context.Background()
 	ghClient := gh.NewClient(ctx, rs.Token)
 
-	store, err := jsonstore.NewRepositoryStore(rs.ReposDir, rs.Query)
+	store, err := jsonstore.NewMetadataStore(rs.ReposDir, rs.Query)
 	if err != nil {
 		return nil, err
 	}

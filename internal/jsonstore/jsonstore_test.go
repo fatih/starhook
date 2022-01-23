@@ -11,11 +11,11 @@ import (
 	qt "github.com/frankban/quicktest"
 )
 
-func TestNewRepositoryStore_newFile(t *testing.T) {
+func TestNewMetadataStore_newFile(t *testing.T) {
 	c := qt.New(t)
 	dir := c.Mkdir()
 
-	store, err := NewRepositoryStore(dir, "test:query")
+	store, err := NewMetadataStore(dir, "test:query")
 	c.Assert(err, qt.IsNil)
 
 	out, err := os.ReadFile(store.path)
@@ -27,11 +27,11 @@ func TestNewRepositoryStore_newFile(t *testing.T) {
 	c.Assert(db.Repositories, qt.HasLen, 0)
 }
 
-func TestNewRepositoryStore_existingFile(t *testing.T) {
+func TestNewMetadataStore_existingFile(t *testing.T) {
 	c := qt.New(t)
 	dir := c.Mkdir()
 
-	store, err := NewRepositoryStore(dir, "test:query")
+	store, err := NewMetadataStore(dir, "test:query")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,7 +41,7 @@ func TestNewRepositoryStore_existingFile(t *testing.T) {
 	c.Assert(err, qt.IsNil)
 
 	// open again and check whether file content is changed or not
-	_, err = NewRepositoryStore(dir, "test:query")
+	_, err = NewMetadataStore(dir, "test:query")
 	c.Assert(err, qt.IsNil)
 
 	out, err := os.ReadFile(store.path)
@@ -53,11 +53,11 @@ func TestNewRepositoryStore_existingFile(t *testing.T) {
 	c.Assert(string(out), qt.Equals, content)
 }
 
-func TestNewRepositoryStore_CreateRepo(t *testing.T) {
+func TestNewMetadataStore_CreateRepo(t *testing.T) {
 	c := qt.New(t)
 	dir := c.Mkdir()
 
-	store, err := NewRepositoryStore(dir, "test:query")
+	store, err := NewMetadataStore(dir, "test:query")
 	c.Assert(err, qt.IsNil)
 
 	repo := &internal.Repository{
@@ -81,11 +81,11 @@ func TestNewRepositoryStore_CreateRepo(t *testing.T) {
 	c.Assert(db.Repositories, qt.HasLen, 1)
 }
 
-func TestNewRepositoryStore_CreateRepo_multiple(t *testing.T) {
+func TestNewMetadataStore_CreateRepo_multiple(t *testing.T) {
 	c := qt.New(t)
 	dir := c.Mkdir()
 
-	store, err := NewRepositoryStore(dir, "test:query")
+	store, err := NewMetadataStore(dir, "test:query")
 	c.Assert(err, qt.IsNil)
 
 	repo := &internal.Repository{
@@ -116,11 +116,11 @@ func TestNewRepositoryStore_CreateRepo_multiple(t *testing.T) {
 	c.Assert(db.Repositories, qt.HasLen, 3)
 }
 
-func TestNewRepositoryStore_FindRepos(t *testing.T) {
+func TestNewMetadataStore_FindRepos(t *testing.T) {
 	c := qt.New(t)
 	dir := c.Mkdir()
 
-	store, err := NewRepositoryStore(dir, "test:query")
+	store, err := NewMetadataStore(dir, "test:query")
 	c.Assert(err, qt.IsNil)
 
 	repo := &internal.Repository{
@@ -142,11 +142,11 @@ func TestNewRepositoryStore_FindRepos(t *testing.T) {
 	c.Assert(repos, qt.HasLen, 3)
 }
 
-func TestNewRepositoryStore_UpdateRepo(t *testing.T) {
+func TestNewMetadataStore_UpdateRepo(t *testing.T) {
 	c := qt.New(t)
 	dir := c.Mkdir()
 
-	store, err := NewRepositoryStore(dir, "test:query")
+	store, err := NewMetadataStore(dir, "test:query")
 	c.Assert(err, qt.IsNil)
 
 	repo := &internal.Repository{
@@ -170,11 +170,11 @@ func TestNewRepositoryStore_UpdateRepo(t *testing.T) {
 
 }
 
-func TestNewRepositoryStore_FindRepo(t *testing.T) {
+func TestNewMetadataStore_FindRepo(t *testing.T) {
 	c := qt.New(t)
 	dir := c.Mkdir()
 
-	store, err := NewRepositoryStore(dir, "test:query")
+	store, err := NewMetadataStore(dir, "test:query")
 	c.Assert(err, qt.IsNil)
 
 	repo := &internal.Repository{
@@ -194,11 +194,11 @@ func TestNewRepositoryStore_FindRepo(t *testing.T) {
 	c.Assert(!rp.UpdatedAt.IsZero(), qt.IsTrue, qt.Commentf("updated_at should be not zero"))
 }
 
-func TestNewRepositoryStore_DeleteRepo(t *testing.T) {
+func TestNewMetadataStore_DeleteRepo(t *testing.T) {
 	c := qt.New(t)
 	dir := c.Mkdir()
 
-	store, err := NewRepositoryStore(dir, "test:query")
+	store, err := NewMetadataStore(dir, "test:query")
 	c.Assert(err, qt.IsNil)
 
 	ctx := context.Background()

@@ -14,7 +14,7 @@ import (
 
 const dbFile = "starhook.json"
 
-var _ internal.RepositoryStore = (*RepositoryStore)(nil)
+var _ internal.MetadataStore = (*MetadataStore)(nil)
 
 type internalDB struct {
 	Repositories []*internal.Repository `json:"repositories"`
@@ -23,12 +23,12 @@ type internalDB struct {
 	Query string `json:"query"`
 }
 
-type RepositoryStore struct {
+type MetadataStore struct {
 	path string
 	mu   sync.Mutex
 }
 
-func NewRepositoryStore(dir, query string) (*RepositoryStore, error) {
+func NewMetadataStore(dir, query string) (*MetadataStore, error) {
 	if _, err := os.Stat(dir); err != nil {
 		fmt.Printf("err = %+v\n", err)
 		return nil, fmt.Errorf("dir %q does not exist", dir)
@@ -70,12 +70,12 @@ func NewRepositoryStore(dir, query string) (*RepositoryStore, error) {
 		}
 	}
 
-	return &RepositoryStore{
+	return &MetadataStore{
 		path: reposfile,
 	}, nil
 }
 
-func (r *RepositoryStore) FindRepos(ctx context.Context, filter internal.RepositoryFilter, opt internal.FindOptions) ([]*internal.Repository, error) {
+func (r *MetadataStore) FindRepos(ctx context.Context, filter internal.RepositoryFilter, opt internal.FindOptions) ([]*internal.Repository, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -93,7 +93,7 @@ func (r *RepositoryStore) FindRepos(ctx context.Context, filter internal.Reposit
 	return db.Repositories, nil
 }
 
-func (r *RepositoryStore) FindRepo(ctx context.Context, repoID int64) (*internal.Repository, error) {
+func (r *MetadataStore) FindRepo(ctx context.Context, repoID int64) (*internal.Repository, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -117,7 +117,7 @@ func (r *RepositoryStore) FindRepo(ctx context.Context, repoID int64) (*internal
 	return nil, internal.ErrNotFound
 }
 
-func (r *RepositoryStore) CreateRepo(ctx context.Context, repo *internal.Repository) (int64, error) {
+func (r *MetadataStore) CreateRepo(ctx context.Context, repo *internal.Repository) (int64, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -156,7 +156,7 @@ func (r *RepositoryStore) CreateRepo(ctx context.Context, repo *internal.Reposit
 	return repo.ID, nil
 }
 
-func (r *RepositoryStore) UpdateRepo(ctx context.Context, by internal.RepositoryBy, upd internal.RepositoryUpdate) error {
+func (r *MetadataStore) UpdateRepo(ctx context.Context, by internal.RepositoryBy, upd internal.RepositoryUpdate) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -223,7 +223,7 @@ func (r *RepositoryStore) UpdateRepo(ctx context.Context, by internal.Repository
 	return nil
 }
 
-func (r *RepositoryStore) DeleteRepo(ctx context.Context, by internal.RepositoryBy) error {
+func (r *MetadataStore) DeleteRepo(ctx context.Context, by internal.RepositoryBy) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 

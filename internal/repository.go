@@ -47,7 +47,8 @@ type RepositoryBy struct {
 	Name   *string
 }
 
-type RepositoryStore interface {
+// MetadataStore manages the information about repositories.
+type MetadataStore interface {
 	// FindRepositories returns a list of repositories
 	FindRepos(ctx context.Context, filter RepositoryFilter, opt FindOptions) ([]*Repository, error)
 

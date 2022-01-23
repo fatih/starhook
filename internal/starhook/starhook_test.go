@@ -24,7 +24,7 @@ func TestService_ListRepos(t *testing.T) {
 		{ID: 2},
 	}
 
-	store := &mock.RepositoryStore{
+	store := &mock.MetadataStore{
 		FindReposFn: func(ctx context.Context, filter internal.RepositoryFilter, opt internal.FindOptions) ([]*internal.Repository, error) {
 			return repos, nil
 		},

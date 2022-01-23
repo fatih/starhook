@@ -68,7 +68,7 @@ func (c *Sync) Exec(ctx context.Context, _ []string) error {
 		return err
 	}
 
-	store, err := jsonstore.NewRepositoryStore(rs.ReposDir, rs.Query)
+	store, err := jsonstore.NewMetadataStore(rs.ReposDir, rs.Query)
 	if err != nil {
 		return err
 	}
