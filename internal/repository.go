@@ -65,6 +65,18 @@ type MetadataStore interface {
 	DeleteRepo(ctx context.Context, by RepositoryBy) error
 }
 
+// RepositoryStore manages the repositories on a filesystem.
+type RepositoryStore interface {
+	// CreateRepos creates a single repository.
+	CreateRepo(ctx context.Context, repo *Repository) error
+
+	// CreateRepos updates a single repository.
+	UpdateRepo(ctx context.Context, repo *Repository) error
+
+	// DeleteRepo deletes a single repository.
+	DeleteRepo(ctx context.Context, repo *Repository) error
+}
+
 // DefaultFindOptions is the default option to be used with Find* methods
 var DefaultFindOptions = FindOptions{
 	Limit: 25,

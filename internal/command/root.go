@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/fatih/starhook/internal/config"
+	"github.com/fatih/starhook/internal/fsstore"
 	"github.com/fatih/starhook/internal/gh"
 	"github.com/fatih/starhook/internal/jsonstore"
 	"github.com/fatih/starhook/internal/starhook"
@@ -97,5 +98,10 @@ func newStarHookService() (*starhook.Service, error) {
 		return nil, err
 	}
 
-	return starhook.NewService(ghClient, store, rs.ReposDir), nil
+	fsStore, err := fsstore.NewRepositoryStore(rs.ReposDir)
+	if err != nil {
+		return nil, err
+	}
+
+	return starhook.NewService(ghClient, store, fsStore), nil
 }

@@ -4,13 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/fatih/starhook/internal"
 	"github.com/fatih/starhook/internal/gh"
-	"github.com/fatih/starhook/internal/git"
 
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
@@ -18,15 +15,15 @@ import (
 
 type Service struct {
 	client *gh.Client
-	dir    string
 	store  internal.MetadataStore
+	fs     internal.RepositoryStore
 }
 
-func NewService(ghClient *gh.Client, store internal.MetadataStore, dir string) *Service {
+func NewService(ghClient *gh.Client, store internal.MetadataStore, fs internal.RepositoryStore) *Service {
 	return &Service{
 		client: ghClient,
-		dir:    dir,
 		store:  store,
+		fs:     fs,
 	}
 }
 
@@ -42,7 +39,7 @@ func (s *Service) DeleteRepo(ctx context.Context, repoID int64) error {
 		return err
 	}
 
-	err = s.deleteRepo(ctx, repo)
+	err = s.fs.DeleteRepo(ctx, repo)
 	if err != nil {
 		return err
 	}
@@ -101,7 +98,7 @@ func (s *Service) CloneRepos(ctx context.Context, repos []*internal.Repository) 
 
 		g.Go(func() error {
 			defer sem.Release(1)
-			return s.cloneRepo(ctx, repo)
+			return s.fs.CreateRepo(ctx, repo)
 		})
 	}
 
@@ -147,7 +144,7 @@ func (s *Service) UpdateRepos(ctx context.Context, repos []*internal.Repository)
 
 		g.Go(func() error {
 			defer sem.Release(1)
-			return s.updateRepo(ctx, repo)
+			return s.fs.UpdateRepo(ctx, repo)
 		})
 	}
 
@@ -173,7 +170,7 @@ func (s *Service) UpdateRepos(ctx context.Context, repos []*internal.Repository)
 	return nil
 }
 
-// SyncRepos syncs the repost in the store, with the fetched remote repositories.
+// SyncRepos syncs the repositories in the store, with the fetched remote repositories.
 func (s *Service) SyncRepos(ctx context.Context, repos, fetchedRepos []*internal.Repository) error {
 	localRepos := make(map[string]*internal.Repository, len(repos))
 	for _, repo := range repos {
@@ -231,49 +228,4 @@ func (s *Service) SyncRepos(ctx context.Context, repos, fetchedRepos []*internal
 	}
 
 	return g.Wait()
-}
-
-func (s *Service) updateRepo(ctx context.Context, repo *internal.Repository) error {
-	repoDir := filepath.Join(s.dir, repo.Name)
-	g := &git.Client{Dir: repoDir}
-
-	if _, err := g.Run("reset", "--hard"); err != nil {
-		return err
-	}
-	if _, err := g.Run("clean", "-df"); err != nil {
-		return err
-	}
-
-	if _, err := g.Run("checkout", repo.Branch); err != nil {
-		return err
-	}
-
-	if _, err := g.Run("pull", "origin", repo.SHA); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (s *Service) cloneRepo(ctx context.Context, repo *internal.Repository) error {
-	repoDir := filepath.Join(s.dir, repo.Name)
-
-	// do not clone if it exists
-	if _, err := os.Stat(repoDir); err == nil {
-		return nil
-	}
-
-	cloneURL := fmt.Sprintf("https://github.com/%s/%s.git", repo.Owner, repo.Name)
-	g := &git.Client{}
-	_, err := g.Run("clone", cloneURL, "--depth=1", repoDir)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (s *Service) deleteRepo(ctx context.Context, repo *internal.Repository) error {
-	repoDir := filepath.Join(s.dir, repo.Name)
-	return os.RemoveAll(repoDir)
 }

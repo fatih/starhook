@@ -9,12 +9,14 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/dustin/go-humanize"
 	"github.com/fatih/starhook/internal"
 	"github.com/fatih/starhook/internal/config"
+	"github.com/fatih/starhook/internal/fsstore"
 	"github.com/fatih/starhook/internal/gh"
 	"github.com/fatih/starhook/internal/jsonstore"
 	"github.com/fatih/starhook/internal/starhook"
+
+	"github.com/dustin/go-humanize"
 	"github.com/google/go-github/v39/github"
 	"github.com/peterbourgon/ff/v3/ffcli"
 )
@@ -73,7 +75,12 @@ func (c *Sync) Exec(ctx context.Context, _ []string) error {
 		return err
 	}
 
-	svc := starhook.NewService(ghClient, store, rs.ReposDir)
+	fsStore, err := fsstore.NewRepositoryStore(rs.ReposDir)
+	if err != nil {
+		return err
+	}
+
+	svc := starhook.NewService(ghClient, store, fsStore)
 
 	fmt.Fprintln(c.out, "==> querying for latest repositories ...")
 	ghRepos, err := ghClient.FetchRepos(ctx, rs.Query)

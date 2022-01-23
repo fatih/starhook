@@ -12,7 +12,7 @@ import (
 
 func TestNewService(t *testing.T) {
 	c := qt.New(t)
-	svc := NewService(nil, nil, "")
+	svc := NewService(nil, nil, nil)
 	c.Assert(svc, qt.Not(qt.IsNil), qt.Commentf("service should be not nil"))
 }
 
@@ -30,7 +30,9 @@ func TestService_ListRepos(t *testing.T) {
 		},
 	}
 
-	svc := NewService(nil, store, "")
+	fsstore := &mock.RepositoryStore{}
+
+	svc := NewService(nil, store, fsstore)
 
 	resp, err := svc.ListRepos(ctx)
 
