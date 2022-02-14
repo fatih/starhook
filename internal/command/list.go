@@ -4,7 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"io"
+	"log"
 	"time"
 
 	"github.com/dustin/go-humanize"
@@ -14,17 +14,14 @@ import (
 // List is the config for the list subcommand, including a reference to the
 // global config, for access to global flags.
 type List struct {
-	rootConfig *RootConfig
-	out        io.Writer
-
+	rootConfig      *RootConfig
 	withAccessTimes bool
 }
 
 // New creates a new ffcli.Command for the list subcommand.
-func listCmd(rootConfig *RootConfig, out io.Writer) *ffcli.Command {
+func listCmd(rootConfig *RootConfig) *ffcli.Command {
 	cfg := List{
 		rootConfig: rootConfig,
-		out:        out,
 	}
 
 	fs := flag.NewFlagSet("starhook list", flag.ExitOnError)
@@ -61,8 +58,7 @@ func (c *List) Exec(ctx context.Context, _ []string) error {
 		fmt.Printf("%3d %s\n", repo.ID, repo.Nwo)
 	}
 
-	fmt.Fprintf(c.out, "==> local %d repositories (last synced: %s)\n", len(repos), humanize.Time(lastUpdated))
+	log.Printf("==> local %d repositories (last synced: %s)\n", len(repos), humanize.Time(lastUpdated))
 
 	return nil
-
 }

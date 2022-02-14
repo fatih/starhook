@@ -4,8 +4,7 @@ import (
 	"context"
 	"errors"
 	"flag"
-	"fmt"
-	"io"
+	"log"
 
 	"github.com/peterbourgon/ff/v3/ffcli"
 )
@@ -14,16 +13,13 @@ import (
 // global config, for access to global flags.
 type Delete struct {
 	rootConfig *RootConfig
-	out        io.Writer
-
-	id int64
+	id         int64
 }
 
 // New creates a new ffcli.Command for the list subcommand.
-func deleteCmd(rootConfig *RootConfig, out io.Writer) *ffcli.Command {
+func deleteCmd(rootConfig *RootConfig) *ffcli.Command {
 	cfg := Delete{
 		rootConfig: rootConfig,
-		out:        out,
 	}
 
 	fs := flag.NewFlagSet("starhook delete", flag.ExitOnError)
@@ -56,6 +52,6 @@ func (c *Delete) Exec(ctx context.Context, _ []string) error {
 		return err
 	}
 
-	fmt.Fprintln(c.out, "==> repository removed")
+	log.Println("==> repository removed")
 	return nil
 }

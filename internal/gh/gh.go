@@ -2,11 +2,15 @@ package gh
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"time"
 
 	"github.com/google/go-github/v39/github"
 	"golang.org/x/oauth2"
 )
+
+var ErrBranchNotFound = errors.New("branch not found")
 
 type Branch struct {
 	SHA       string
@@ -57,7 +61,6 @@ func (c *Client) FetchRepos(ctx context.Context, query string) ([]*github.Reposi
 		}
 
 		repos = append(repos, res.Repositories...)
-
 		if resp.NextPage == 0 {
 			break
 		}
@@ -69,8 +72,12 @@ func (c *Client) FetchRepos(ctx context.Context, query string) ([]*github.Reposi
 }
 
 func (c *Client) Branch(ctx context.Context, owner, name, branch string) (*Branch, error) {
-	res, _, err := c.Repositories.GetBranch(ctx, owner, name, branch, true)
+	res, resp, err := c.Repositories.GetBranch(ctx, owner, name, branch, true)
 	if err != nil {
+		if resp != nil && resp.StatusCode == http.StatusNotFound {
+			return nil, ErrBranchNotFound
+		}
+
 		return nil, err
 	}
 
