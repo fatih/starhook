@@ -4,7 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -25,16 +25,14 @@ import (
 // global config, for access to global flags.
 type Sync struct {
 	rootConfig *RootConfig
-	out        io.Writer
 
 	dryRun bool
 	force  bool
 }
 
-func syncCmd(rootConfig *RootConfig, out io.Writer) *ffcli.Command {
+func syncCmd(rootConfig *RootConfig) *ffcli.Command {
 	cfg := Sync{
 		rootConfig: rootConfig,
-		out:        out,
 	}
 
 	fs := flag.NewFlagSet("starhook sync", flag.ExitOnError)
@@ -54,6 +52,8 @@ func syncCmd(rootConfig *RootConfig, out io.Writer) *ffcli.Command {
 
 // Exec function for this command.
 func (c *Sync) Exec(ctx context.Context, _ []string) error {
+	log.Println("[DEBUG] loading the configuration")
+
 	cfg, err := config.Load()
 	if err != nil {
 		return err
@@ -64,12 +64,14 @@ func (c *Sync) Exec(ctx context.Context, _ []string) error {
 		return err
 	}
 
+	log.Printf("[DEBUG] selected reposet: %s query: %s\n", rs.Name, rs.Query)
 	ghClient := gh.NewClient(ctx, rs.Token)
 
 	if err := os.MkdirAll(filepath.Dir(rs.ReposDir), 0700); err != nil {
 		return err
 	}
 
+	log.Printf("[DEBUG] using repo dir: %s\n", rs.ReposDir)
 	store, err := jsonstore.NewMetadataStore(rs.ReposDir, rs.Query)
 	if err != nil {
 		return err
@@ -82,13 +84,14 @@ func (c *Sync) Exec(ctx context.Context, _ []string) error {
 
 	svc := starhook.NewService(ghClient, store, fsStore)
 
-	fmt.Fprintln(c.out, "==> querying for latest repositories ...")
+	log.Println("querying for latest repositories ...")
 	ghRepos, err := ghClient.FetchRepos(ctx, rs.Query)
 	if err != nil {
 		return err
 	}
 	fetchedRepos := toRepos(ghRepos)
 
+	log.Println("[DEBUG] fetching repos from GitHub")
 	currentRepos, err := svc.ListRepos(ctx)
 	if err != nil {
 		return err
@@ -101,29 +104,30 @@ func (c *Sync) Exec(ctx context.Context, _ []string) error {
 		}
 	}
 
-	fmt.Printf("==> last synced: %s\n", humanize.Time(lastSynced))
+	log.Printf("==> last synced: %s\n", humanize.Time(lastSynced))
 
+	log.Println("[DEBUG] syncing remote repos to local directory")
 	if err := svc.SyncRepos(ctx, currentRepos, fetchedRepos); err != nil {
 		return err
 	}
 
-	clone, update, err := svc.ReposToUpdate(ctx, currentRepos)
+	clone, update, err := svc.ReposToUpdate(ctx)
 	if err != nil {
 		return err
 	}
 
 	total := len(clone) + len(update)
 	if total == 0 {
-		fmt.Fprintf(c.out, "==> everything is up-to-date")
+		log.Printf("==> everything is up-to-date")
 		return nil
 	}
 
-	fmt.Fprintf(c.out, "==> updates found:  \n")
-	fmt.Fprintf(c.out, "  clone  : %3d\n", len(clone))
-	fmt.Fprintf(c.out, "  update : %3d\n", len(update))
+	log.Printf("==> updates found:  \n")
+	log.Printf("  clone  : %3d\n", len(clone))
+	log.Printf("  update : %3d\n", len(update))
 
 	if c.dryRun {
-		fmt.Fprintln(c.out, "\nremove the '--dry-run' flag to update & clone the repositories")
+		log.Println("\nremove the '--dry-run' flag to update & clone the repositories")
 		return nil
 	}
 
@@ -131,7 +135,7 @@ func (c *Sync) Exec(ctx context.Context, _ []string) error {
 	if err := svc.CloneRepos(ctx, clone); err != nil {
 		return err
 	}
-	fmt.Printf("==> cloned: %d repositories (elapsed time: %s)\n",
+	log.Printf("==> cloned: %d repositories (elapsed time: %s)\n",
 		len(clone), time.Since(start).String())
 
 	start = time.Now()
@@ -140,11 +144,10 @@ func (c *Sync) Exec(ctx context.Context, _ []string) error {
 	}
 
 	for _, repo := range update {
-		fmt.Printf("  %q is updated (last updated: %s)\n",
+		log.Printf("  %q is updated (last updated: %s)\n",
 			repo.Name, humanize.Time(repo.SyncedAt))
-
 	}
-	fmt.Printf("==> updated: %d repositories (elapsed time: %s)\n",
+	log.Printf("==> updated: %d repositories (elapsed time: %s)\n",
 		len(update), time.Since(start).String())
 
 	return nil

@@ -3,6 +3,8 @@ package command
 import (
 	"context"
 	"flag"
+	"io"
+	"log"
 	"os"
 
 	"github.com/fatih/starhook/internal/config"
@@ -11,6 +13,7 @@ import (
 	"github.com/fatih/starhook/internal/jsonstore"
 	"github.com/fatih/starhook/internal/starhook"
 
+	"github.com/hashicorp/logutils"
 	"github.com/peterbourgon/ff/v3"
 	"github.com/peterbourgon/ff/v3/ffcli"
 )
@@ -21,31 +24,47 @@ type RootConfig struct {
 	Verbose bool
 
 	Service *starhook.Service
+
+	out io.Writer
 }
 
 func Run() error {
 	ctx := context.Background()
 
-	var (
-		out                     = os.Stdout
-		rootCommand, rootConfig = newRootCommand()
-	)
+	rootCommand, rootConfig := newRootCommand()
 
 	rootCommand.Subcommands = []*ffcli.Command{
-		deleteCmd(rootConfig, out),
-		configCmd(rootConfig, out),
-		listCmd(rootConfig, out),
-		syncCmd(rootConfig, out),
+		deleteCmd(rootConfig),
+		configCmd(rootConfig),
+		listCmd(rootConfig),
+		syncCmd(rootConfig),
 	}
 
-	return rootCommand.ParseAndRun(ctx, os.Args[1:])
+	if err := rootCommand.Parse(os.Args[1:]); err != nil {
+		return err
+	}
+
+	filter := &logutils.LevelFilter{
+		Levels:   []logutils.LogLevel{"DEBUG", "INFO", "WARN", "ERROR"},
+		MinLevel: logutils.LogLevel("INFO"),
+		Writer:   rootConfig.out,
+	}
+	if rootConfig.Verbose {
+		filter.MinLevel = logutils.LogLevel("DEBUG")
+	}
+	log.SetOutput(filter)
+
+	return rootCommand.Run(ctx)
 }
 
 // newRootCommand constructs a usable ffcli.Command and an empty Config. The config's token
 // and verbose fields will be set after a successful parse. The caller must
 // initialize the config's object API client field.
 func newRootCommand() (*ffcli.Command, *RootConfig) {
-	var cfg RootConfig
+	cfg := &RootConfig{
+		// NOTE(fatih) should we make this configurable?
+		out: os.Stdout,
+	}
 
 	fs := flag.NewFlagSet("starhook", flag.ExitOnError)
 	cfg.RegisterFlags(fs)
@@ -60,7 +79,7 @@ func newRootCommand() (*ffcli.Command, *RootConfig) {
 			ff.WithConfigFileFlag("config"),
 			ff.WithConfigFileParser(ff.JSONParser),
 		},
-	}, &cfg
+	}, cfg
 }
 
 // RegisterFlags registers the flag fields into the provided flag.FlagSet. This

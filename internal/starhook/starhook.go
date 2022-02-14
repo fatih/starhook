@@ -4,10 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
+	"sync"
 	"time"
 
 	"github.com/fatih/starhook/internal"
 	"github.com/fatih/starhook/internal/gh"
+	"github.com/hashicorp/go-multierror"
 
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
@@ -53,7 +56,12 @@ func (s *Service) ListRepos(ctx context.Context) ([]*internal.Repository, error)
 }
 
 // ReposToUpdate returns the repositories to clone or update.
-func (s *Service) ReposToUpdate(ctx context.Context, repos []*internal.Repository) ([]*internal.Repository, []*internal.Repository, error) {
+func (s *Service) ReposToUpdate(ctx context.Context) ([]*internal.Repository, []*internal.Repository, error) {
+	repos, err := s.ListRepos(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	if len(repos) == 0 {
 		return nil, nil, errors.New("no repositories to update")
 	}
@@ -177,55 +185,88 @@ func (s *Service) SyncRepos(ctx context.Context, repos, fetchedRepos []*internal
 		localRepos[repo.Nwo] = repo
 	}
 
-	g, ctx := errgroup.WithContext(ctx)
+	var wg sync.WaitGroup
+	var errs *multierror.Error
 
 	const maxWorkers = 5
 	sem := semaphore.NewWeighted(maxWorkers)
 
+	log.Printf("[DEBUG] syncing with local store, fetched repos: %d local repos: %d", len(fetchedRepos), len(localRepos))
 	for _, repo := range fetchedRepos {
+		wg.Add(1)
 		repo := repo
+		localRepo := localRepos[repo.Nwo]
 
 		if err := sem.Acquire(ctx, 1); err != nil {
 			return fmt.Errorf("couldn't acquire semaphore: %s", err)
 		}
 
-		g.Go(func() error {
+		go func() {
 			defer sem.Release(1)
+			defer wg.Done()
 
-			// NOTE(fatih): there is the possibility that the default branch
-			// might have changed, for now we assume that's not the case, but
-			// it's worth noting here.
-			branch, err := s.client.Branch(ctx, repo.Owner, repo.Name, repo.Branch)
-			if err != nil {
-				return err
+			if err := s.syncRepo(ctx, localRepo, repo); err != nil {
+				log.Printf("[ERROR] retrieving branch information, owner: %q, name: %q, branch: %q, err: %s",
+					repo.Owner, repo.Name, repo.Branch, err)
+				errs = multierror.Append(errs, err)
 			}
-			repo.BranchUpdatedAt = branch.UpdatedAt
-			repo.SHA = branch.SHA
-
-			localRepo, ok := localRepos[repo.Nwo]
-			if !ok {
-				_, err = s.store.CreateRepo(ctx, repo)
-				if err != nil {
-					return err
-				}
-			} else if !localRepo.BranchUpdatedAt.Equal(repo.BranchUpdatedAt) {
-				err = s.store.UpdateRepo(ctx,
-					internal.RepositoryBy{
-						Name: &repo.Name,
-					},
-					internal.RepositoryUpdate{
-						SHA:             &repo.SHA,
-						BranchUpdatedAt: &repo.BranchUpdatedAt,
-					},
-				)
-				if err != nil {
-					return err
-				}
-			}
-
-			return nil
-		})
+		}()
 	}
 
-	return g.Wait()
+	wg.Wait()
+
+	return errs.ErrorOrNil()
+}
+
+// syncRepo sync the local repo with the fetched repo
+func (s *Service) syncRepo(ctx context.Context, localRepo, repo *internal.Repository) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	// NOTE(fatih): there is the possibility that the default branch
+	// might have changed, for now we assume that's not the case, but
+	// it's worth noting here.
+	branch, err := s.client.Branch(ctx, repo.Owner, repo.Name, repo.Branch)
+	if err != nil {
+		if errors.Is(err, gh.ErrBranchNotFound) {
+			log.Printf("[WARN] no branch information found, owner: %q, name: %q, branch: %q",
+				repo.Owner, repo.Name, repo.Branch)
+			return nil
+		}
+
+		return err
+	}
+
+	repo.BranchUpdatedAt = branch.UpdatedAt
+	repo.SHA = branch.SHA
+
+	if localRepo == nil {
+		log.Printf("[DEBUG] creating new entry, owner: %q, name: %q, branch: %q",
+			repo.Owner, repo.Name, repo.Branch)
+		_, err = s.store.CreateRepo(ctx, repo)
+		if err != nil {
+			return err
+		}
+	} else if !localRepo.BranchUpdatedAt.Equal(repo.BranchUpdatedAt) {
+		log.Printf("[DEBUG] updating entry, owner: %q, name: %q, branch: %q",
+			repo.Owner, repo.Name, repo.Branch)
+		err = s.store.UpdateRepo(ctx,
+			internal.RepositoryBy{
+				Name: &repo.Name,
+			},
+			internal.RepositoryUpdate{
+				SHA:             &repo.SHA,
+				BranchUpdatedAt: &repo.BranchUpdatedAt,
+			},
+		)
+		if err != nil {
+			return err
+		}
+	} else {
+		log.Printf("[DEBUG] entry is up-to-date, owner: %q, name: %q, branch: %q",
+			repo.Owner, repo.Name, repo.Branch)
+	}
+
+	return nil
 }

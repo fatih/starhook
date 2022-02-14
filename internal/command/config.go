@@ -5,7 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"text/tabwriter"
@@ -19,20 +19,18 @@ import (
 // global config, for access to global flags.
 type Config struct {
 	rootConfig *RootConfig
-	out        io.Writer
 }
 
 // New creates a new ffcli.Command for the list subcommand.
-func configCmd(rootConfig *RootConfig, out io.Writer) *ffcli.Command {
+func configCmd(rootConfig *RootConfig) *ffcli.Command {
 	cfg := Config{
 		rootConfig: rootConfig,
-		out:        out,
 	}
 
 	fs := flag.NewFlagSet("starhook config", flag.ExitOnError)
 	rootConfig.RegisterFlags(fs)
 
-	//TODO
+	// TODO
 	// following subcommands need to be added
 	// config delete // delete a configuration and all repositories (ask for confirmation, it's destructable)
 	// config set key value   // update existing value, only for token and query
@@ -44,10 +42,10 @@ func configCmd(rootConfig *RootConfig, out io.Writer) *ffcli.Command {
 		FlagSet:    fs,
 		Exec:       cfg.Exec,
 		Subcommands: []*ffcli.Command{
-			configAddCmd(rootConfig, out),
-			configShowCmd(rootConfig, out),
-			configListCmd(rootConfig, out),
-			configSwitchCmd(rootConfig, out),
+			configAddCmd(rootConfig),
+			configShowCmd(rootConfig),
+			configListCmd(rootConfig),
+			configSwitchCmd(rootConfig),
 		},
 	}
 }
@@ -57,7 +55,7 @@ func (c *Config) Exec(ctx context.Context, _ []string) error {
 	return flag.ErrHelp
 }
 
-func configAddCmd(rootConfig *RootConfig, out io.Writer) *ffcli.Command {
+func configAddCmd(rootConfig *RootConfig) *ffcli.Command {
 	var (
 		name  string // optional
 		token string
@@ -134,13 +132,13 @@ func configAddCmd(rootConfig *RootConfig, out io.Writer) *ffcli.Command {
 				return err
 			}
 
-			fmt.Fprintf(out, "starhook is initialized (config name: %q)\n\nPlease run 'starhook config switch %s && starhook sync' to download and sync your repositories.\n", name, name)
+			log.Printf("starhook is initialized (config name: %q)\n\nPlease run 'starhook config switch %s && starhook sync' to download and sync your repositories.\n", name, name)
 			return nil
 		},
 	}
 }
 
-func configShowCmd(rootConfig *RootConfig, out io.Writer) *ffcli.Command {
+func configShowCmd(rootConfig *RootConfig) *ffcli.Command {
 	fs := flag.NewFlagSet("starhook config show", flag.ExitOnError)
 	rootConfig.RegisterFlags(fs)
 
@@ -161,7 +159,7 @@ func configShowCmd(rootConfig *RootConfig, out io.Writer) *ffcli.Command {
 			}
 
 			const padding = 3
-			w := tabwriter.NewWriter(out, 0, 0, padding, ' ', 0)
+			w := tabwriter.NewWriter(rootConfig.out, 0, 0, padding, ' ', 0)
 
 			fmt.Fprintf(w, "Name\t%+v\n", rs.Name)
 			fmt.Fprintf(w, "Query\t%+v\n", rs.Query)
@@ -173,7 +171,7 @@ func configShowCmd(rootConfig *RootConfig, out io.Writer) *ffcli.Command {
 	}
 }
 
-func configListCmd(rootConfig *RootConfig, out io.Writer) *ffcli.Command {
+func configListCmd(rootConfig *RootConfig) *ffcli.Command {
 	fs := flag.NewFlagSet("starhook config list", flag.ExitOnError)
 	rootConfig.RegisterFlags(fs)
 
@@ -189,7 +187,7 @@ func configListCmd(rootConfig *RootConfig, out io.Writer) *ffcli.Command {
 			}
 
 			const padding = 3
-			w := tabwriter.NewWriter(out, 0, 0, padding, ' ', 0)
+			w := tabwriter.NewWriter(rootConfig.out, 0, 0, padding, ' ', 0)
 
 			for _, rs := range cfg.RepoSets {
 				fmt.Fprintf(w, "Name\t%+v\n", rs.Name)
@@ -203,7 +201,7 @@ func configListCmd(rootConfig *RootConfig, out io.Writer) *ffcli.Command {
 	}
 }
 
-func configSwitchCmd(rootConfig *RootConfig, out io.Writer) *ffcli.Command {
+func configSwitchCmd(rootConfig *RootConfig) *ffcli.Command {
 	fs := flag.NewFlagSet("starhook config switch", flag.ExitOnError)
 	rootConfig.RegisterFlags(fs)
 
@@ -242,9 +240,8 @@ func configSwitchCmd(rootConfig *RootConfig, out io.Writer) *ffcli.Command {
 				return err
 			}
 
-			fmt.Fprintf(out, "Switched to %q\n", configName)
+			log.Printf("Switched to %q\n", configName)
 			return nil
-
 		},
 	}
 }
