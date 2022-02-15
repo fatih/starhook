@@ -124,7 +124,13 @@ func (c *Sync) Exec(ctx context.Context, _ []string) error {
 
 	log.Printf("==> updates found:  \n")
 	log.Printf("  clone  : %3d\n", len(clone))
+	for _, r := range clone {
+		log.Printf("[DEBUG]  cloning: %q", r.Nwo)
+	}
 	log.Printf("  update : %3d\n", len(update))
+	for _, r := range update {
+		log.Printf("[DEBUG] updating: %q", r.Nwo)
+	}
 
 	if c.dryRun {
 		log.Println("\nremove the '--dry-run' flag to update & clone the repositories")

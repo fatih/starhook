@@ -73,11 +73,15 @@ func (s *Service) ReposToUpdate(ctx context.Context) ([]*internal.Repository, []
 
 	for _, repo := range repos {
 		if repo.SyncedAt.IsZero() {
+			log.Printf("[DEBUG] clone, owner: %q, name: %q, branch: %q",
+				repo.Owner, repo.Name, repo.Branch)
 			clone = append(clone, repo)
 			continue
 		}
 
 		if repo.SyncedAt.Before(repo.BranchUpdatedAt) {
+			log.Printf("[DEBUG] update, owner: %q, name: %q, branch: %q",
+				repo.Owner, repo.Name, repo.Branch)
 			update = append(update, repo)
 		}
 
@@ -230,7 +234,7 @@ func (s *Service) syncRepo(ctx context.Context, localRepo, repo *internal.Reposi
 	branch, err := s.client.Branch(ctx, repo.Owner, repo.Name, repo.Branch)
 	if err != nil {
 		if errors.Is(err, gh.ErrBranchNotFound) {
-			log.Printf("[WARN] no branch information found, owner: %q, name: %q, branch: %q",
+			log.Printf("[DEBUG] no branch information found, owner: %q, name: %q, branch: %q",
 				repo.Owner, repo.Name, repo.Branch)
 			return nil
 		}
