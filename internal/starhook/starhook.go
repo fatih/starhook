@@ -12,7 +12,6 @@ import (
 	"github.com/fatih/starhook/internal/gh"
 	"github.com/hashicorp/go-multierror"
 
-	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )
 
@@ -73,15 +72,15 @@ func (s *Service) ReposToUpdate(ctx context.Context) ([]*internal.Repository, []
 
 	for _, repo := range repos {
 		if repo.SyncedAt.IsZero() {
-			log.Printf("[DEBUG] clone, owner: %q, name: %q, branch: %q",
-				repo.Owner, repo.Name, repo.Branch)
+			log.Printf("[DEBUG] clone, owner: %q, name: %q, branch: %q, sha: %q",
+				repo.Owner, repo.Name, repo.Branch, repo.SHA)
 			clone = append(clone, repo)
 			continue
 		}
 
 		if repo.SyncedAt.Before(repo.BranchUpdatedAt) {
-			log.Printf("[DEBUG] update, owner: %q, name: %q, branch: %q",
-				repo.Owner, repo.Name, repo.Branch)
+			log.Printf("[DEBUG] update, owner: %q, name: %q, branch: %q, sha: %q",
+				repo.Owner, repo.Name, repo.Branch, repo.SHA)
 			update = append(update, repo)
 		}
 
@@ -96,11 +95,15 @@ func (s *Service) CloneRepos(ctx context.Context, repos []*internal.Repository) 
 		return nil
 	}
 
+	var wg sync.WaitGroup
+	var errs *multierror.Error
+	var mu sync.Mutex
+
 	const maxWorkers = 10
 	sem := semaphore.NewWeighted(maxWorkers)
 
-	g, ctx := errgroup.WithContext(ctx)
 	for _, repo := range repos {
+		wg.Add(1)
 		repo := repo
 
 		err := sem.Acquire(ctx, 1)
@@ -108,14 +111,23 @@ func (s *Service) CloneRepos(ctx context.Context, repos []*internal.Repository) 
 			return fmt.Errorf("couldn't acquire semaphore: %s", err)
 		}
 
-		g.Go(func() error {
+		go func() {
 			defer sem.Release(1)
-			return s.fs.CreateRepo(ctx, repo)
-		})
+			defer wg.Done()
+
+			err := s.fs.CreateRepo(ctx, repo)
+			if err != nil {
+				mu.Lock()
+				errs = multierror.Append(errs, err)
+				mu.Unlock()
+			}
+		}()
 	}
 
-	if err := g.Wait(); err != nil {
-		return fmt.Errorf("errgroup wait err: %s ", err)
+	wg.Wait()
+
+	if errs != nil {
+		return errs.ErrorOrNil()
 	}
 
 	for _, repo := range repos {
@@ -142,11 +154,15 @@ func (s *Service) UpdateRepos(ctx context.Context, repos []*internal.Repository)
 		return nil
 	}
 
+	var wg sync.WaitGroup
+	var errs *multierror.Error
+	var mu sync.Mutex
+
 	const maxWorkers = 10
 	sem := semaphore.NewWeighted(maxWorkers)
 
-	g, ctx := errgroup.WithContext(ctx)
 	for _, repo := range repos {
+		wg.Add(1)
 		repo := repo
 
 		err := sem.Acquire(ctx, 1)
@@ -154,14 +170,23 @@ func (s *Service) UpdateRepos(ctx context.Context, repos []*internal.Repository)
 			return fmt.Errorf("couldn't acquire semaphore: %s", err)
 		}
 
-		g.Go(func() error {
+		go func() {
 			defer sem.Release(1)
-			return s.fs.UpdateRepo(ctx, repo)
-		})
+			defer wg.Done()
+
+			err := s.fs.UpdateRepo(ctx, internal.UpdateOptions{}, repo)
+			if err != nil {
+				mu.Lock()
+				errs = multierror.Append(errs, err)
+				mu.Unlock()
+			}
+		}()
+
 	}
 
-	if err := g.Wait(); err != nil {
-		return fmt.Errorf("errgroup wait err: %s ", err)
+	wg.Wait()
+	if errs != nil {
+		return errs.ErrorOrNil()
 	}
 
 	for _, repo := range repos {
@@ -191,6 +216,7 @@ func (s *Service) SyncRepos(ctx context.Context, repos, fetchedRepos []*internal
 
 	var wg sync.WaitGroup
 	var errs *multierror.Error
+	var mu sync.Mutex
 
 	const maxWorkers = 5
 	sem := semaphore.NewWeighted(maxWorkers)
@@ -212,7 +238,9 @@ func (s *Service) SyncRepos(ctx context.Context, repos, fetchedRepos []*internal
 			if err := s.syncRepo(ctx, localRepo, repo); err != nil {
 				log.Printf("[ERROR] retrieving branch information, owner: %q, name: %q, branch: %q, err: %s",
 					repo.Owner, repo.Name, repo.Branch, err)
+				mu.Lock()
 				errs = multierror.Append(errs, err)
+				mu.Unlock()
 			}
 		}()
 	}
@@ -267,9 +295,6 @@ func (s *Service) syncRepo(ctx context.Context, localRepo, repo *internal.Reposi
 		if err != nil {
 			return err
 		}
-	} else {
-		log.Printf("[DEBUG] entry is up-to-date, owner: %q, name: %q, branch: %q",
-			repo.Owner, repo.Name, repo.Branch)
 	}
 
 	return nil
