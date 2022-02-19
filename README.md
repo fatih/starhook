@@ -30,9 +30,9 @@ Now, let's clone the repositories  with the `--dry-run` flag to see what is `sta
 
 ```
 $ starhook sync --dry-run
-==> querying for latest repositories ...
-==> last synced: a long while ago
-==> updates found:
+querying for latest repositories ...
+last synced: a long while ago
+updates found:
   clone  :  29
   update :   0
 
@@ -48,14 +48,14 @@ Now, let's remove the `--dry-run` flag. `starhook` will execute the query and cl
 
 ```
 $ starhook sync
-==> querying for latest repositories ...
-==> last synced: a long while ago
-==> updates found:
+querying for latest repositories ...
+last synced: a long while ago
+updates found:
   clone  :  29
   update :   0
   ...
   ...
-==> cloned: 29 repositories (elapsed time: 10.146454763s)
+cloned: 29 repositories (elapsed time: 10.146454763s)
 ```
 
 ### Update repositories
@@ -65,13 +65,13 @@ To update existing repositories, just run the `sync` subcommand. `starhook` only
 
 ```
 $ starhook sync
-==> querying for latest repositories ...
-==> last synced: 20 minutes ago
-==> updates found:
+querying for latest repositories ...
+last synced: 20 minutes ago
+updates found:
   clone  :   0
   update :   1
   "starhook" is updated (last updated: 20 minutes ago)
-==> updated: 1 repositories (elapsed time: 2.032119469s)
+updated: 1 repositories (elapsed time: 2.032119469s)
 ```
 
 
@@ -87,7 +87,7 @@ $ starhook list
   4 fatih/color
   5 fatih/gomodifytags
   ...
-==> local 29 repositories (last synced: 15 minutes ago)
+local 29 repositories (last synced: 15 minutes ago)
 ```
 
 
@@ -97,7 +97,7 @@ To delete a repository from the local storage, use the `delete` subcommand with 
 
 ```
 $ starhook delete --id 3
-==> removed repository: "fatih/structs"
+removed repository: "fatih/structs"
 ```
 
 ### Create a second reposet
@@ -143,9 +143,9 @@ $ starhook config switch shining-moon
 Switched to 'shining-moon'
 
 $ starhook sync
-==> querying for latest repositories ...
-==> last synced: a long while ago
-==> updates found:
+querying for latest repositories ...
+last synced: a long while ago
+updates found:
   clone  :   5
   update :   0
   cloning vim-hclfmt
@@ -158,6 +158,6 @@ $ starhook sync
   "vim-hclfmt" is created
   "vim-go-tutorial" is created
   "vim-nginx" is created
-==> cloned: 5 repositories (elapsed time: 2.279053145s)
+cloned: 5 repositories (elapsed time: 2.279053145s)
 ```
 

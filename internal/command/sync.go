@@ -104,7 +104,7 @@ func (c *Sync) Exec(ctx context.Context, _ []string) error {
 		}
 	}
 
-	log.Printf("==> last synced: %s\n", humanize.Time(lastSynced))
+	log.Printf("last synced: %s\n", humanize.Time(lastSynced))
 
 	log.Println("[DEBUG] syncing remote repos to local directory")
 	if err := svc.SyncRepos(ctx, currentRepos, fetchedRepos); err != nil {
@@ -118,11 +118,11 @@ func (c *Sync) Exec(ctx context.Context, _ []string) error {
 
 	total := len(clone) + len(update)
 	if total == 0 {
-		log.Printf("==> everything is up-to-date")
+		log.Printf("everything is up-to-date")
 		return nil
 	}
 
-	log.Printf("==> updates found:  \n")
+	log.Printf("updates found:  \n")
 	log.Printf("  clone  : %3d\n", len(clone))
 	for _, r := range clone {
 		log.Printf("[DEBUG]  cloning: %q", r.Nwo)
@@ -141,7 +141,7 @@ func (c *Sync) Exec(ctx context.Context, _ []string) error {
 	if err := svc.CloneRepos(ctx, clone); err != nil {
 		return err
 	}
-	log.Printf("==> cloned: %d repositories (elapsed time: %s)\n",
+	log.Printf("cloned: %d repositories (elapsed time: %s)\n",
 		len(clone), time.Since(start).String())
 
 	start = time.Now()
@@ -153,7 +153,7 @@ func (c *Sync) Exec(ctx context.Context, _ []string) error {
 		log.Printf("  %q is updated (last updated: %s)\n",
 			repo.Name, humanize.Time(repo.SyncedAt))
 	}
-	log.Printf("==> updated: %d repositories (elapsed time: %s)\n",
+	log.Printf("updated: %d repositories (elapsed time: %s)\n",
 		len(update), time.Since(start).String())
 
 	return nil

@@ -49,8 +49,12 @@ func Run() error {
 		MinLevel: logutils.LogLevel("INFO"),
 		Writer:   rootConfig.out,
 	}
+
 	if rootConfig.Verbose {
 		filter.MinLevel = logutils.LogLevel("DEBUG")
+	} else {
+		// don't show time in non verbose mode
+		log.SetFlags(0)
 	}
 	log.SetOutput(filter)
 
