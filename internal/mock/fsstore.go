@@ -13,7 +13,7 @@ type RepositoryStore struct {
 	CreateRepoFn      func(ctx context.Context, repo *internal.Repository) error
 	CreateRepoInvoked bool
 
-	UpdateRepoFn      func(ctx context.Context, repo *internal.Repository) error
+	UpdateRepoFn      func(ctx context.Context, opt internal.UpdateOptions, repo *internal.Repository) error
 	UpdateRepoInvoked bool
 
 	DeleteRepoFn      func(ctx context.Context, repo *internal.Repository) error
@@ -27,9 +27,9 @@ func (r *RepositoryStore) CreateRepo(ctx context.Context, repo *internal.Reposit
 }
 
 // UpdateRepo updates a single repository
-func (r *RepositoryStore) UpdateRepo(ctx context.Context, repo *internal.Repository) error {
+func (r *RepositoryStore) UpdateRepo(ctx context.Context, opt internal.UpdateOptions, repo *internal.Repository) error {
 	r.UpdateRepoInvoked = true
-	return r.UpdateRepoFn(ctx, repo)
+	return r.UpdateRepoFn(ctx, opt, repo)
 }
 
 // DeleteRepo deletes a single repository

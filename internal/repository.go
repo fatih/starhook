@@ -11,11 +11,14 @@ var ErrNotFound = errors.New("not found")
 
 // Repository represents a repository on GitHub
 type Repository struct {
-	ID     int64
-	Nwo    string // name with owner
-	Owner  string // i.e: fatih, github
-	Name   string // i.e: vim-go, gh-ost
-	Branch string // usually it's main, but people can change it
+	ID    int64
+	Nwo   string // name with owner
+	Owner string // i.e: fatih, github
+	Name  string // i.e: vim-go, gh-ost
+
+	// Branch defines the default branch, usually it's main, but people can
+	// change it.
+	Branch string //
 	SHA    string // commit SHA, saved during sync
 
 	// SyncedAt defines the time the repo content was synced locally. If
@@ -32,7 +35,7 @@ type Repository struct {
 
 type RepositoryFilter struct{}
 
-// RepositoryUpdate is used to update a Repository
+// RepositoryUpdate is used to update a Repository's fields.
 type RepositoryUpdate struct {
 	Nwo             *string
 	Owner           *string
@@ -41,7 +44,7 @@ type RepositoryUpdate struct {
 	BranchUpdatedAt *time.Time
 }
 
-// RepositoryUpdate is used to select a repository to update
+// RepositoryBy is used to select a repository to update.
 type RepositoryBy struct {
 	RepoID *int64
 	Name   *string
@@ -65,13 +68,18 @@ type MetadataStore interface {
 	DeleteRepo(ctx context.Context, by RepositoryBy) error
 }
 
+// UpdateOptions defines the options for a n
+type UpdateOptions struct {
+	ForceClean bool
+}
+
 // RepositoryStore manages the repositories on a filesystem.
 type RepositoryStore interface {
-	// CreateRepos creates a single repository.
+	// CreateRepo creates a single repository.
 	CreateRepo(ctx context.Context, repo *Repository) error
 
-	// CreateRepos updates a single repository.
-	UpdateRepo(ctx context.Context, repo *Repository) error
+	// UpdateRepo updates a single repository.
+	UpdateRepo(ctx context.Context, opt UpdateOptions, repo *Repository) error
 
 	// DeleteRepo deletes a single repository.
 	DeleteRepo(ctx context.Context, repo *Repository) error

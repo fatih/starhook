@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"sync"
 	"time"
 
@@ -12,7 +13,6 @@ import (
 	"github.com/fatih/starhook/internal/gh"
 	"github.com/hashicorp/go-multierror"
 
-	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )
 
@@ -73,15 +73,15 @@ func (s *Service) ReposToUpdate(ctx context.Context) ([]*internal.Repository, []
 
 	for _, repo := range repos {
 		if repo.SyncedAt.IsZero() {
-			log.Printf("[DEBUG] clone, owner: %q, name: %q, branch: %q",
-				repo.Owner, repo.Name, repo.Branch)
+			log.Printf("[DEBUG] clone, owner: %q, name: %q, branch: %q, sha: %q",
+				repo.Owner, repo.Name, repo.Branch, repo.SHA)
 			clone = append(clone, repo)
 			continue
 		}
 
 		if repo.SyncedAt.Before(repo.BranchUpdatedAt) {
-			log.Printf("[DEBUG] update, owner: %q, name: %q, branch: %q",
-				repo.Owner, repo.Name, repo.Branch)
+			log.Printf("[DEBUG] update, owner: %q, name: %q, branch: %q, sha: %q",
+				repo.Owner, repo.Name, repo.Branch, repo.SHA)
 			update = append(update, repo)
 		}
 
@@ -96,11 +96,15 @@ func (s *Service) CloneRepos(ctx context.Context, repos []*internal.Repository) 
 		return nil
 	}
 
+	var wg sync.WaitGroup
+	var errs *multierror.Error
+	var mu sync.Mutex
+
 	const maxWorkers = 10
 	sem := semaphore.NewWeighted(maxWorkers)
 
-	g, ctx := errgroup.WithContext(ctx)
 	for _, repo := range repos {
+		wg.Add(1)
 		repo := repo
 
 		err := sem.Acquire(ctx, 1)
@@ -108,32 +112,70 @@ func (s *Service) CloneRepos(ctx context.Context, repos []*internal.Repository) 
 			return fmt.Errorf("couldn't acquire semaphore: %s", err)
 		}
 
-		g.Go(func() error {
+		go func() {
 			defer sem.Release(1)
-			return s.fs.CreateRepo(ctx, repo)
-		})
+			defer wg.Done()
+
+			if err := s.cloneRepo(ctx, repo); err != nil {
+				mu.Lock()
+				errs = multierror.Append(errs, err)
+				mu.Unlock()
+			}
+		}()
 	}
 
-	if err := g.Wait(); err != nil {
-		return fmt.Errorf("errgroup wait err: %s ", err)
+	wg.Wait()
+
+	return errs.ErrorOrNil()
+}
+
+// cloneRepo clones a single repository.
+func (s *Service) cloneRepo(ctx context.Context, repo *internal.Repository) error {
+	err := s.fs.CreateRepo(ctx, repo)
+	if err != nil {
+		return err
 	}
 
-	for _, repo := range repos {
-		now := time.Now().UTC()
-		err := s.store.UpdateRepo(ctx,
-			internal.RepositoryBy{
-				Name: &repo.Name,
-			},
-			internal.RepositoryUpdate{
-				SyncedAt: &now,
-			},
-		)
-		if err != nil {
-			return err
-		}
+	now := time.Now().UTC()
+	err = s.store.UpdateRepo(ctx,
+		internal.RepositoryBy{
+			Name: &repo.Name,
+		},
+		internal.RepositoryUpdate{
+			SyncedAt: &now,
+		},
+	)
+
+	return err
+}
+
+// updateRepo updates a single repository.
+func (s *Service) updateRepo(ctx context.Context, repo *internal.Repository) error {
+	err := s.fs.UpdateRepo(ctx, internal.UpdateOptions{}, repo)
+	if os.IsNotExist(err) {
+		// this happens if the folder was deleted not with starhook. Remove it
+		// from the repository store and repair any incosistency
+		log.Printf("[DEBUG] repository was removed from file system, removing from metadastore owner: %q, name: %q, branch: %q",
+			repo.Owner, repo.Name, repo.Branch)
+
+		return s.store.DeleteRepo(ctx, internal.RepositoryBy{RepoID: &repo.ID})
 	}
 
-	return nil
+	if err != nil {
+		return err
+	}
+
+	now := time.Now().UTC()
+	err = s.store.UpdateRepo(ctx,
+		internal.RepositoryBy{
+			Name: &repo.Name,
+		},
+		internal.RepositoryUpdate{
+			SyncedAt: &now,
+		},
+	)
+
+	return err
 }
 
 // UpdateRepos updates the given repositories locally to its latest ref.
@@ -142,11 +184,15 @@ func (s *Service) UpdateRepos(ctx context.Context, repos []*internal.Repository)
 		return nil
 	}
 
+	var wg sync.WaitGroup
+	var errs *multierror.Error
+	var mu sync.Mutex
+
 	const maxWorkers = 10
 	sem := semaphore.NewWeighted(maxWorkers)
 
-	g, ctx := errgroup.WithContext(ctx)
 	for _, repo := range repos {
+		wg.Add(1)
 		repo := repo
 
 		err := sem.Acquire(ctx, 1)
@@ -154,32 +200,22 @@ func (s *Service) UpdateRepos(ctx context.Context, repos []*internal.Repository)
 			return fmt.Errorf("couldn't acquire semaphore: %s", err)
 		}
 
-		g.Go(func() error {
+		go func() {
 			defer sem.Release(1)
-			return s.fs.UpdateRepo(ctx, repo)
-		})
+			defer wg.Done()
+
+			if err := s.updateRepo(ctx, repo); err != nil {
+				mu.Lock()
+				errs = multierror.Append(errs, err)
+				mu.Unlock()
+			}
+		}()
+
 	}
 
-	if err := g.Wait(); err != nil {
-		return fmt.Errorf("errgroup wait err: %s ", err)
-	}
+	wg.Wait()
 
-	for _, repo := range repos {
-		now := time.Now().UTC()
-		err := s.store.UpdateRepo(ctx,
-			internal.RepositoryBy{
-				Name: &repo.Name,
-			},
-			internal.RepositoryUpdate{
-				SyncedAt: &now,
-			},
-		)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return errs.ErrorOrNil()
 }
 
 // SyncRepos syncs the repositories in the store, with the fetched remote repositories.
@@ -191,6 +227,7 @@ func (s *Service) SyncRepos(ctx context.Context, repos, fetchedRepos []*internal
 
 	var wg sync.WaitGroup
 	var errs *multierror.Error
+	var mu sync.Mutex
 
 	const maxWorkers = 5
 	sem := semaphore.NewWeighted(maxWorkers)
@@ -212,7 +249,9 @@ func (s *Service) SyncRepos(ctx context.Context, repos, fetchedRepos []*internal
 			if err := s.syncRepo(ctx, localRepo, repo); err != nil {
 				log.Printf("[ERROR] retrieving branch information, owner: %q, name: %q, branch: %q, err: %s",
 					repo.Owner, repo.Name, repo.Branch, err)
+				mu.Lock()
 				errs = multierror.Append(errs, err)
+				mu.Unlock()
 			}
 		}()
 	}
@@ -267,9 +306,6 @@ func (s *Service) syncRepo(ctx context.Context, localRepo, repo *internal.Reposi
 		if err != nil {
 			return err
 		}
-	} else {
-		log.Printf("[DEBUG] entry is up-to-date, owner: %q, name: %q, branch: %q",
-			repo.Owner, repo.Name, repo.Branch)
 	}
 
 	return nil
