@@ -6,21 +6,13 @@ import (
 )
 
 type Client struct {
-	dir string
-}
-
-func NewClient(repoDir string) (*Client, error) {
-	g := &Client{
-		dir: repoDir,
-	}
-
-	return g, nil
+	Dir string
 }
 
 func (g *Client) Run(args ...string) ([]byte, error) {
 	c := exec.Command("git", args...)
-	if g.dir != "" {
-		c.Dir = g.dir
+	if g.Dir != "" {
+		c.Dir = g.Dir
 	}
 
 	out, err := c.CombinedOutput()

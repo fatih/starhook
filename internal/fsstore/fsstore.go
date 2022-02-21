@@ -31,15 +31,13 @@ func (r *RepositoryStore) CreateRepo(ctx context.Context, repo *internal.Reposit
 		return nil
 	}
 
-	log.Printf("[DEBUG]  cloning repo, owner: %q, name: %q, branch: %q",
+	log.Printf("[DEBUG] cloning repo, owner: %q, name: %q, branch: %q",
 		repo.Owner, repo.Name, repo.Branch)
-	cloneURL := fmt.Sprintf("https://github.com/%s/%s.git", repo.Owner, repo.Name)
 
-	g, err := git.NewClient(repoDir)
-	if err != nil {
-		return err
-	}
-	_, err = g.Run("clone", cloneURL, "--depth=1", repoDir)
+	g := &git.Client{}
+
+	cloneURL := fmt.Sprintf("https://github.com/%s/%s.git", repo.Owner, repo.Name)
+	_, err := g.Run("clone", cloneURL, "--depth=1", repoDir)
 	if err != nil {
 		return err
 	}
@@ -57,10 +55,7 @@ func (r *RepositoryStore) UpdateRepo(ctx context.Context, opts internal.UpdateOp
 		return err
 	}
 
-	g, err := git.NewClient(repoDir)
-	if err != nil {
-		return err
-	}
+	g := &git.Client{Dir: repoDir}
 
 	log.Printf("[DEBUG] updating repo, name: %q, branch: %q, sha: %q (opts: %v)",
 		repo.Nwo, repo.Branch, repo.SHA, opts)

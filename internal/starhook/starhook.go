@@ -149,6 +149,35 @@ func (s *Service) CloneRepos(ctx context.Context, repos []*internal.Repository) 
 	return nil
 }
 
+// updateRepo updates a single repository.
+func (s *Service) updateRepo(ctx context.Context, repo *internal.Repository) error {
+	err := s.fs.UpdateRepo(ctx, internal.UpdateOptions{}, repo)
+	if os.IsNotExist(err) {
+		// this happens if the folder was deleted not with starhook. Remove it
+		// from the repository store and repair any incosistency
+		log.Printf("[DEBUG] repository was removed from file system, removing from metadastore owner: %q, name: %q, branch: %q",
+			repo.Owner, repo.Name, repo.Branch)
+
+		return s.store.DeleteRepo(ctx, internal.RepositoryBy{RepoID: &repo.ID})
+	}
+
+	if err != nil {
+		return err
+	}
+
+	now := time.Now().UTC()
+	err = s.store.UpdateRepo(ctx,
+		internal.RepositoryBy{
+			Name: &repo.Name,
+		},
+		internal.RepositoryUpdate{
+			SyncedAt: &now,
+		},
+	)
+
+	return err
+}
+
 // UpdateRepos updates the given repositories locally to its latest ref.
 func (s *Service) UpdateRepos(ctx context.Context, repos []*internal.Repository) error {
 	if len(repos) == 0 {
@@ -162,12 +191,7 @@ func (s *Service) UpdateRepos(ctx context.Context, repos []*internal.Repository)
 	const maxWorkers = 10
 	sem := semaphore.NewWeighted(maxWorkers)
 
-	uniqRepos := make(map[string]*internal.Repository)
 	for _, repo := range repos {
-		uniqRepos[repo.Nwo] = repo
-	}
-
-	for _, repo := range uniqRepos {
 		wg.Add(1)
 		repo := repo
 
@@ -180,22 +204,7 @@ func (s *Service) UpdateRepos(ctx context.Context, repos []*internal.Repository)
 			defer sem.Release(1)
 			defer wg.Done()
 
-			err := s.fs.UpdateRepo(ctx, internal.UpdateOptions{}, repo)
-			if os.IsNotExist(err) {
-				// this happens if the folder was deleted not with starhook. Remove it
-				// from the repository store and repair any incosistency
-				log.Printf("[DEBUG] repository was removed from file system, removing from metadastore owner: %q, name: %q, branch: %q",
-					repo.Owner, repo.Name, repo.Branch)
-
-				err = s.store.DeleteRepo(ctx, internal.RepositoryBy{RepoID: &repo.ID})
-				if err != nil {
-					mu.Lock()
-					errs = multierror.Append(errs, err)
-					mu.Unlock()
-				}
-
-				delete(uniqRepos, repo.Nwo)
-			} else if err != nil {
+			if err := s.updateRepo(ctx, repo); err != nil {
 				mu.Lock()
 				errs = multierror.Append(errs, err)
 				mu.Unlock()
@@ -205,26 +214,8 @@ func (s *Service) UpdateRepos(ctx context.Context, repos []*internal.Repository)
 	}
 
 	wg.Wait()
-	if errs != nil {
-		return errs.ErrorOrNil()
-	}
 
-	for _, repo := range uniqRepos {
-		now := time.Now().UTC()
-		err := s.store.UpdateRepo(ctx,
-			internal.RepositoryBy{
-				Name: &repo.Name,
-			},
-			internal.RepositoryUpdate{
-				SyncedAt: &now,
-			},
-		)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return errs.ErrorOrNil()
 }
 
 // SyncRepos syncs the repositories in the store, with the fetched remote repositories.
