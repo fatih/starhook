@@ -34,8 +34,11 @@ func (r *RepositoryStore) CreateRepo(ctx context.Context, repo *internal.Reposit
 	log.Printf("[DEBUG]  cloning repo, owner: %q, name: %q, branch: %q",
 		repo.Owner, repo.Name, repo.Branch)
 	cloneURL := fmt.Sprintf("https://github.com/%s/%s.git", repo.Owner, repo.Name)
-	g := &git.Client{}
-	_, err := g.Run("clone", cloneURL, "--depth=1", repoDir)
+	g, err := git.NewClient(repoDir)
+	if err != nil {
+		return err
+	}
+	_, err = g.Run("clone", cloneURL, "--depth=1", repoDir)
 	if err != nil {
 		return err
 	}
@@ -71,14 +74,12 @@ func (r *RepositoryStore) UpdateRepo(ctx context.Context, opts internal.UpdateOp
 			return err
 		}
 	} else {
-		// update the default branch. This command works even if you're on
-		// another branch
 		branch, err := g.Run("rev-parse", "--abbrev-ref", "HEAD")
 		if err != nil {
 			return err
 		}
 
-		// if we're on the default branch, just checkout to latest
+		// TODO(fatih) make sure remote name is indeed 'origin'.
 		if string(branch) == repo.Branch {
 			if _, err := g.Run("pull", "origin", repo.SHA); err != nil {
 				return err

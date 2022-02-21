@@ -7,12 +7,12 @@ import (
 )
 
 type Client struct {
-	Dir string
+	dir string
 }
 
 func NewClient(repoDir string) (*Client, error) {
 	g := &Client{
-		Dir: repoDir,
+		dir: repoDir,
 	}
 
 	_, err := os.Stat(repoDir)
@@ -25,8 +25,8 @@ func NewClient(repoDir string) (*Client, error) {
 
 func (g *Client) Run(args ...string) ([]byte, error) {
 	c := exec.Command("git", args...)
-	if g.Dir != "" {
-		c.Dir = g.Dir
+	if g.dir != "" {
+		c.Dir = g.dir
 	}
 
 	out, err := c.CombinedOutput()
