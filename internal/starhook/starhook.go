@@ -116,8 +116,7 @@ func (s *Service) CloneRepos(ctx context.Context, repos []*internal.Repository) 
 			defer sem.Release(1)
 			defer wg.Done()
 
-			err := s.fs.CreateRepo(ctx, repo)
-			if err != nil {
+			if err := s.cloneRepo(ctx, repo); err != nil {
 				mu.Lock()
 				errs = multierror.Append(errs, err)
 				mu.Unlock()
@@ -127,26 +126,27 @@ func (s *Service) CloneRepos(ctx context.Context, repos []*internal.Repository) 
 
 	wg.Wait()
 
-	if errs != nil {
-		return errs.ErrorOrNil()
+	return errs.ErrorOrNil()
+}
+
+// cloneRepo clones a single repository.
+func (s *Service) cloneRepo(ctx context.Context, repo *internal.Repository) error {
+	err := s.fs.CreateRepo(ctx, repo)
+	if err != nil {
+		return err
 	}
 
-	for _, repo := range repos {
-		now := time.Now().UTC()
-		err := s.store.UpdateRepo(ctx,
-			internal.RepositoryBy{
-				Name: &repo.Name,
-			},
-			internal.RepositoryUpdate{
-				SyncedAt: &now,
-			},
-		)
-		if err != nil {
-			return err
-		}
-	}
+	now := time.Now().UTC()
+	err = s.store.UpdateRepo(ctx,
+		internal.RepositoryBy{
+			Name: &repo.Name,
+		},
+		internal.RepositoryUpdate{
+			SyncedAt: &now,
+		},
+	)
 
-	return nil
+	return err
 }
 
 // updateRepo updates a single repository.
