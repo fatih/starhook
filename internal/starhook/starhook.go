@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"sync"
 	"time"
 
@@ -161,7 +162,12 @@ func (s *Service) UpdateRepos(ctx context.Context, repos []*internal.Repository)
 	const maxWorkers = 10
 	sem := semaphore.NewWeighted(maxWorkers)
 
+	uniqRepos := make(map[string]*internal.Repository)
 	for _, repo := range repos {
+		uniqRepos[repo.Nwo] = repo
+	}
+
+	for _, repo := range uniqRepos {
 		wg.Add(1)
 		repo := repo
 
@@ -175,7 +181,21 @@ func (s *Service) UpdateRepos(ctx context.Context, repos []*internal.Repository)
 			defer wg.Done()
 
 			err := s.fs.UpdateRepo(ctx, internal.UpdateOptions{}, repo)
-			if err != nil {
+			if os.IsNotExist(err) {
+				// this happens if the folder was deleted not with starhook. Remove it
+				// from the repository store and repair any incosistency
+				log.Printf("[DEBUG] repository was removed from file system, removing from metadastore owner: %q, name: %q, branch: %q",
+					repo.Owner, repo.Name, repo.Branch)
+
+				err = s.store.DeleteRepo(ctx, internal.RepositoryBy{RepoID: &repo.ID})
+				if err != nil {
+					mu.Lock()
+					errs = multierror.Append(errs, err)
+					mu.Unlock()
+				}
+
+				delete(uniqRepos, repo.Nwo)
+			} else if err != nil {
 				mu.Lock()
 				errs = multierror.Append(errs, err)
 				mu.Unlock()
@@ -189,7 +209,7 @@ func (s *Service) UpdateRepos(ctx context.Context, repos []*internal.Repository)
 		return errs.ErrorOrNil()
 	}
 
-	for _, repo := range repos {
+	for _, repo := range uniqRepos {
 		now := time.Now().UTC()
 		err := s.store.UpdateRepo(ctx,
 			internal.RepositoryBy{

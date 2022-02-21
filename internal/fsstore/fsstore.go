@@ -46,7 +46,11 @@ func (r *RepositoryStore) CreateRepo(ctx context.Context, repo *internal.Reposit
 // UpdateRepo updates a single repository.
 func (r *RepositoryStore) UpdateRepo(ctx context.Context, opts internal.UpdateOptions, repo *internal.Repository) error {
 	repoDir := filepath.Join(r.dir, repo.Name)
-	g := &git.Client{Dir: repoDir}
+
+	g, err := git.NewClient(repoDir)
+	if err != nil {
+		return err
+	}
 
 	log.Printf("[DEBUG] updating repo, name: %q, branch: %q, sha: %q (opts: %v)",
 		repo.Nwo, repo.Branch, repo.SHA, opts)
