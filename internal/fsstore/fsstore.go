@@ -72,7 +72,7 @@ func (r *RepositoryStore) UpdateRepo(ctx context.Context, opts internal.UpdateOp
 		if _, err := g.Run("checkout", repo.Branch); err != nil {
 			return err
 		}
-		if _, err := g.Run("pull", "origin", repo.SHA); err != nil {
+		if _, err := g.Run("pull", "--rebase", "origin", repo.SHA); err != nil {
 			return err
 		}
 	} else {
@@ -83,7 +83,7 @@ func (r *RepositoryStore) UpdateRepo(ctx context.Context, opts internal.UpdateOp
 
 		// TODO(fatih) make sure remote name is indeed 'origin'.
 		if string(branch) == repo.Branch {
-			if _, err := g.Run("pull", "origin", repo.SHA); err != nil {
+			if _, err := g.Run("pull", "--rebase", "origin", repo.SHA); err != nil {
 				return err
 			}
 		} else {
@@ -100,9 +100,13 @@ func (r *RepositoryStore) UpdateRepo(ctx context.Context, opts internal.UpdateOp
 			if _, err := g.Run("checkout", repo.Branch); err != nil {
 				return err
 			}
-			if _, err := g.Run("pull", "origin", repo.SHA); err != nil {
+
+			// NOTE(fatih): check whether git reset would be better for our usecase.
+			// or better: "git reset --hard origin/main"
+			if _, err := g.Run("pull", "--rebase", "origin", repo.SHA); err != nil {
 				return err
 			}
+
 			if _, err := g.Run("checkout", "-"); err != nil {
 				return err
 			}
