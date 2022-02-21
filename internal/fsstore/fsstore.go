@@ -34,6 +34,7 @@ func (r *RepositoryStore) CreateRepo(ctx context.Context, repo *internal.Reposit
 	log.Printf("[DEBUG]  cloning repo, owner: %q, name: %q, branch: %q",
 		repo.Owner, repo.Name, repo.Branch)
 	cloneURL := fmt.Sprintf("https://github.com/%s/%s.git", repo.Owner, repo.Name)
+
 	g, err := git.NewClient(repoDir)
 	if err != nil {
 		return err
@@ -49,6 +50,12 @@ func (r *RepositoryStore) CreateRepo(ctx context.Context, repo *internal.Reposit
 // UpdateRepo updates a single repository.
 func (r *RepositoryStore) UpdateRepo(ctx context.Context, opts internal.UpdateOptions, repo *internal.Repository) error {
 	repoDir := filepath.Join(r.dir, repo.Name)
+
+	// don't continue if the repo was removed or doesn't exist.
+	_, err := os.Stat(repoDir)
+	if err != nil {
+		return err
+	}
 
 	g, err := git.NewClient(repoDir)
 	if err != nil {

@@ -2,7 +2,6 @@ package git
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 )
 
@@ -13,11 +12,6 @@ type Client struct {
 func NewClient(repoDir string) (*Client, error) {
 	g := &Client{
 		dir: repoDir,
-	}
-
-	_, err := os.Stat(repoDir)
-	if err != nil {
-		return nil, err
 	}
 
 	return g, nil
