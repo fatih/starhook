@@ -6,14 +6,11 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/fatih/starhook/internal"
 	"github.com/fatih/starhook/internal/gh"
-	"github.com/hashicorp/go-multierror"
-
-	"golang.org/x/sync/semaphore"
+	"github.com/fatih/starhook/internal/semgroup"
 )
 
 type Service struct {
@@ -67,37 +64,21 @@ func (s *Service) DeleteRepos(ctx context.Context, repos []*internal.Repository)
 		return nil
 	}
 
-	var wg sync.WaitGroup
-	var errs *multierror.Error
-	var mu sync.Mutex
-
 	const maxWorkers = 10
-	sem := semaphore.NewWeighted(maxWorkers)
+	sem := semgroup.NewGroup(ctx, maxWorkers)
 
 	for _, repo := range repos {
-		wg.Add(1)
 		repo := repo
 
-		err := sem.Acquire(ctx, 1)
+		err := sem.Go(func() error {
+			return s.deleteRepo(ctx, repo)
+		})
 		if err != nil {
-			return fmt.Errorf("couldn't acquire semaphore: %s", err)
+			return err
 		}
-
-		go func() {
-			defer sem.Release(1)
-			defer wg.Done()
-
-			if err := s.deleteRepo(ctx, repo); err != nil {
-				mu.Lock()
-				errs = multierror.Append(errs, err)
-				mu.Unlock()
-			}
-		}()
 	}
 
-	wg.Wait()
-
-	return errs.ErrorOrNil()
+	return sem.Wait()
 }
 
 // deleteRepo deletes the given repo from the DB and the folder if it's exist.
@@ -117,37 +98,21 @@ func (s *Service) CloneRepos(ctx context.Context, repos []*internal.Repository) 
 		return nil
 	}
 
-	var wg sync.WaitGroup
-	var errs *multierror.Error
-	var mu sync.Mutex
-
 	const maxWorkers = 10
-	sem := semaphore.NewWeighted(maxWorkers)
+	sem := semgroup.NewGroup(ctx, maxWorkers)
 
 	for _, repo := range repos {
-		wg.Add(1)
 		repo := repo
 
-		err := sem.Acquire(ctx, 1)
+		err := sem.Go(func() error {
+			return s.cloneRepo(ctx, repo)
+		})
 		if err != nil {
-			return fmt.Errorf("couldn't acquire semaphore: %s", err)
+			return err
 		}
-
-		go func() {
-			defer sem.Release(1)
-			defer wg.Done()
-
-			if err := s.cloneRepo(ctx, repo); err != nil {
-				mu.Lock()
-				errs = multierror.Append(errs, err)
-				mu.Unlock()
-			}
-		}()
 	}
 
-	wg.Wait()
-
-	return errs.ErrorOrNil()
+	return sem.Wait()
 }
 
 // cloneRepo clones a single repository.
@@ -205,38 +170,21 @@ func (s *Service) UpdateRepos(ctx context.Context, repos []*internal.Repository)
 		return nil
 	}
 
-	var wg sync.WaitGroup
-	var errs *multierror.Error
-	var mu sync.Mutex
-
 	const maxWorkers = 10
-	sem := semaphore.NewWeighted(maxWorkers)
+	sem := semgroup.NewGroup(ctx, maxWorkers)
 
 	for _, repo := range repos {
-		wg.Add(1)
 		repo := repo
 
-		err := sem.Acquire(ctx, 1)
+		err := sem.Go(func() error {
+			return s.updateRepo(ctx, repo)
+		})
 		if err != nil {
-			return fmt.Errorf("couldn't acquire semaphore: %s", err)
+			return err
 		}
-
-		go func() {
-			defer sem.Release(1)
-			defer wg.Done()
-
-			if err := s.updateRepo(ctx, repo); err != nil {
-				mu.Lock()
-				errs = multierror.Append(errs, err)
-				mu.Unlock()
-			}
-		}()
-
 	}
 
-	wg.Wait()
-
-	return errs.ErrorOrNil()
+	return sem.Wait()
 }
 
 // SyncRepos syncs the repositories in the store, with the fetched remote
@@ -258,12 +206,8 @@ func (s *Service) SyncRepos(ctx context.Context, repos, fetched []*internal.Repo
 		fetchedRepos[repo.Nwo] = repo
 	}
 
-	var wg sync.WaitGroup
-	var errs *multierror.Error
-	var mu sync.Mutex
-
 	const maxWorkers = 5
-	sem := semaphore.NewWeighted(maxWorkers)
+	sem := semgroup.NewGroup(ctx, maxWorkers)
 
 	// check for repos to delete
 	for _, repo := range localRepos {
@@ -282,31 +226,19 @@ func (s *Service) SyncRepos(ctx context.Context, repos, fetched []*internal.Repo
 	log.Printf("[DEBUG] syncing with local store, fetched repos: %d local repos: %d", len(fetchedRepos), len(localRepos))
 	// check for repos to update or clone
 	for _, repo := range fetchedRepos {
-		wg.Add(1)
 		repo := repo
 		localRepo := localRepos[repo.Nwo]
 
-		if err := sem.Acquire(ctx, 1); err != nil {
-			return nil, fmt.Errorf("couldn't acquire semaphore: %s", err)
+		err := sem.Go(func() error {
+			return s.syncRepo(ctx, localRepo, repo)
+		})
+		if err != nil {
+			return nil, err
 		}
-
-		go func() {
-			defer sem.Release(1)
-			defer wg.Done()
-
-			if err := s.syncRepo(ctx, localRepo, repo); err != nil {
-				log.Printf("[ERROR] retrieving branch information, owner: %q, name: %q, branch: %q, err: %s",
-					repo.Owner, repo.Name, repo.Branch, err)
-				mu.Lock()
-				errs = multierror.Append(errs, err)
-				mu.Unlock()
-			}
-		}()
 	}
 
-	wg.Wait()
-	if errs != nil {
-		return nil, errs.ErrorOrNil()
+	if err := sem.Wait(); err != nil {
+		return nil, err
 	}
 
 	syncedRepos := make([]*internal.Repository, 0)
