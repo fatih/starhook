@@ -3,7 +3,6 @@ package starhook
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
 	"os"
 	"time"
@@ -197,10 +196,6 @@ func (s *Service) SyncRepos(ctx context.Context, repos, fetched []*internal.Repo
 			deleted = append(deleted, repo)
 			delete(localRepos, repo.Nwo)
 		}
-	}
-
-	if len(fetchedRepos) != len(localRepos) {
-		return nil, fmt.Errorf("mismatch of local (%d) and fetched (%d) repos", len(localRepos), len(fetchedRepos))
 	}
 
 	log.Printf("[DEBUG] syncing with local store, fetched repos: %d local repos: %d", len(fetchedRepos), len(localRepos))
