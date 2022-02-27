@@ -5,8 +5,7 @@
 //
 // Unlike golang.org/x/sync/errgroup, it doesn't return the first non-nil
 // error, rather it accumulates all errors and returns a set of errors,
-// allowing each task to fullfil their task. It's the task responsiblity to
-// check whether the context is canceled or not.
+// allowing each task to fullfil their task.
 package semgroup
 
 import (

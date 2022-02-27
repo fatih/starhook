@@ -1,13 +1,28 @@
 # starhook [![](https://github.com/fatih/starhook/workflows/build/badge.svg)](https://github.com/fatih/starhook/actions)
 
-Manage & Analyze repositories at scale
+Starhook is a tool to sync a set of repositories from a set of remote
+repositories to your localhost. It was created to scratch my own itch while
+working working with hundreds of different repositories. 
+`starhook` makes sure to sync with latest remote, so the default branch of
+a repository on your localhost is always synced with remote.
+
+Most of the time, you're working on a feature branch, finish your work and then
+creat a new branch from the default branch again. However you realize later
+that the default (main) branch is not in sync with remote, hence there are
+conflicts, and you have to spend time fixing it.
+
+The goal of `starhook` is to minimize spending time on solving conflicts and
+making sure all your repositories are in sync with remote. It fetches and
+updates repositories in parallel and is fast enough to sync hundreds of
+repositories under just a minute.
+
+For more information please read my blog past: TBD
 
 # Install
 
 ```bash
 go get github.com/fatih/starhook/cmd/starhook
 ```
-
 
 # Usage
 
