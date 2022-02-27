@@ -38,26 +38,6 @@ func (s *Service) ListRepos(ctx context.Context) ([]*internal.Repository, error)
 	return s.store.FindRepos(ctx, internal.RepositoryFilter{}, internal.DefaultFindOptions)
 }
 
-// DeleteRepo deletes the given repo from the DB and the folder if it's exist.
-func (s *Service) DeleteRepo(ctx context.Context, repoID int64) error {
-	repo, err := s.store.FindRepo(ctx, repoID)
-	if err != nil {
-		return err
-	}
-
-	err = s.store.DeleteRepo(ctx, internal.RepositoryBy{RepoID: &repoID})
-	if err != nil {
-		return err
-	}
-
-	err = s.fs.DeleteRepo(ctx, repo)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // DeleteRepos deletes the given repositories.
 func (s *Service) DeleteRepos(ctx context.Context, repos []*internal.Repository) error {
 	if len(repos) == 0 {

@@ -23,7 +23,7 @@ $ mkdir -p /path/to/repos
 $ starhook config add --token=$GITHUB_TOKEN --dir /path/to/repos --query "user:fatih language:go" 
 starhook is initialized (config name: 'wonderful-star')
 
-Please run 'starhook sync' to download and sync you repositories.
+Please run 'starhook sync' to download and sync your repositories.
 ```
 
 Now, let's clone the repositories  with the `--dry-run` flag to see what is `starhook` planning to do:
@@ -36,7 +36,7 @@ updates found:
   clone  :  29
   update :   0
 
-remove -dry-run to update & clone the repositories
+remove -dry-run to sync the repositories
 ```
 
 As you see, it found `29` repositories. This command will all repositories that
@@ -91,15 +91,6 @@ local 29 repositories (last synced: 15 minutes ago)
 ```
 
 
-### Delete repositories
-
-To delete a repository from the local storage, use the `delete` subcommand with the `--id` flag:
-
-```
-$ starhook delete --id 3
-removed repository: "fatih/structs"
-```
-
 ### Create a second reposet
 
 As we said earlier, we can manage multiple `reposet`'s. Let's create another reposet, but this time for repositories that are written in VimScript:
@@ -109,7 +100,7 @@ $ mkdir -p /path/to/viml-repos
 $ starhook config add --token=$GITHUB_TOKEN --dir /path/to/viml-repos --query "user:fatih language:viml" 
 starhook is initialized (config name: 'shining-moon')
 
-Please run 'starhook config switch shining-moon && starhook sync' to download and sync you repositories.
+Please run 'starhook config switch shining-moon && starhook sync' to download and sync your repositories.
 ```
 
 Let's see all current reposets:
