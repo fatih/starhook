@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -30,9 +31,7 @@ func configCmd(rootConfig *RootConfig) *ffcli.Command {
 	fs := flag.NewFlagSet("starhook config", flag.ExitOnError)
 	rootConfig.RegisterFlags(fs)
 
-	// TODO
-	// following subcommands need to be added
-	// config delete // delete a configuration and all repositories (ask for confirmation, it's destructable)
+	// TODO following subcommands need to be added
 	// config set key value   // update existing value, only for token and query
 
 	return &ffcli.Command{
@@ -42,9 +41,10 @@ func configCmd(rootConfig *RootConfig) *ffcli.Command {
 		FlagSet:    fs,
 		Exec:       cfg.Exec,
 		Subcommands: []*ffcli.Command{
-			configAddCmd(rootConfig),
-			configShowCmd(rootConfig),
+			configDeleteCmd(rootConfig),
+			configInitCmd(rootConfig),
 			configListCmd(rootConfig),
+			configShowCmd(rootConfig),
 			configSwitchCmd(rootConfig),
 		},
 	}
@@ -55,7 +55,7 @@ func (c *Config) Exec(ctx context.Context, _ []string) error {
 	return flag.ErrHelp
 }
 
-func configAddCmd(rootConfig *RootConfig) *ffcli.Command {
+func configInitCmd(rootConfig *RootConfig) *ffcli.Command {
 	var (
 		name  string // optional
 		token string
@@ -65,7 +65,7 @@ func configAddCmd(rootConfig *RootConfig) *ffcli.Command {
 		force bool
 	)
 
-	fs := flag.NewFlagSet("starhook config add", flag.ExitOnError)
+	fs := flag.NewFlagSet("starhook config init", flag.ExitOnError)
 	rootConfig.RegisterFlags(fs)
 
 	fs.StringVar(&token, "token", "", "github token, i.e: GITHUB_TOKEN")
@@ -75,9 +75,9 @@ func configAddCmd(rootConfig *RootConfig) *ffcli.Command {
 	fs.BoolVar(&force, "force", false, "override existing configuration for a given --name ")
 
 	return &ffcli.Command{
-		Name:       "add",
-		ShortUsage: "starhook config add [flags] [<prefix>]",
-		ShortHelp:  "Add a new configuration",
+		Name:       "init",
+		ShortUsage: "starhook config init [flags] [<prefix>]",
+		ShortHelp:  "Initialize a new configuration",
 		FlagSet:    fs,
 		Exec: func(ctx context.Context, _ []string) error {
 			if token == "" {
@@ -161,12 +161,51 @@ func configShowCmd(rootConfig *RootConfig) *ffcli.Command {
 			const padding = 3
 			w := tabwriter.NewWriter(rootConfig.out, 0, 0, padding, ' ', 0)
 
-			fmt.Fprintf(w, "Name\t%+v\n", rs.Name)
-			fmt.Fprintf(w, "Query\t%+v\n", rs.Query)
-			fmt.Fprintf(w, "Repositories Directory\t%+v\n", rs.ReposDir)
+			printRepoSet(w, rs)
 			w.Flush()
 
 			return nil
+		},
+	}
+}
+
+func configDeleteCmd(rootConfig *RootConfig) *ffcli.Command {
+	var includeRepos bool
+
+	fs := flag.NewFlagSet("starhook config delete", flag.ExitOnError)
+	rootConfig.RegisterFlags(fs)
+
+	fs.BoolVar(&includeRepos, "repos", false, "delete also all repositories from the filesystem")
+
+	return &ffcli.Command{
+		Name:       "delete",
+		ShortUsage: "starhook config delete [flags] [<prefix>]",
+		ShortHelp:  "Delete an existing configuration",
+		FlagSet:    fs,
+		Exec: func(ctx context.Context, args []string) error {
+			if len(args) == 0 {
+				return flag.ErrHelp
+			}
+
+			configName := args[0]
+
+			cfg, err := config.Load()
+			if err != nil {
+				return err
+			}
+
+			deletedSet, err := cfg.DeleteRepoSet(configName)
+			if err != nil {
+				return err
+			}
+
+			if includeRepos {
+				if err := os.RemoveAll(deletedSet.ReposDir); err != nil {
+					return err
+				}
+			}
+
+			return cfg.Save()
 		},
 	}
 }
@@ -177,7 +216,7 @@ func configListCmd(rootConfig *RootConfig) *ffcli.Command {
 
 	return &ffcli.Command{
 		Name:       "list",
-		ShortUsage: "starhook config list [flags] [<prefix>]",
+		ShortUsage: "starhook config list [flags] [<config_name>]",
 		ShortHelp:  "List existings configurations",
 		FlagSet:    fs,
 		Exec: func(ctx context.Context, _ []string) error {
@@ -190,9 +229,7 @@ func configListCmd(rootConfig *RootConfig) *ffcli.Command {
 			w := tabwriter.NewWriter(rootConfig.out, 0, 0, padding, ' ', 0)
 
 			for _, rs := range cfg.RepoSets {
-				fmt.Fprintf(w, "Name\t%+v\n", rs.Name)
-				fmt.Fprintf(w, "Query\t%+v\n", rs.Query)
-				fmt.Fprintf(w, "Repositories Directory\t%+v\n\n", rs.ReposDir)
+				printRepoSet(w, rs)
 			}
 			w.Flush()
 
@@ -244,4 +281,23 @@ func configSwitchCmd(rootConfig *RootConfig) *ffcli.Command {
 			return nil
 		},
 	}
+}
+
+func printRepoSet(w io.Writer, rs *config.RepoSet) {
+	fmt.Fprintf(w, "Name\t%+v\n", rs.Name)
+	fmt.Fprintf(w, "Query\t%+v\n", rs.Query)
+	fmt.Fprintf(w, "Repositories Directory\t%+v\n", rs.ReposDir)
+
+	if rs.Filter != nil && (len(rs.Filter.Exclude) != 0 || len(rs.Filter.Include) != 0) {
+		fmt.Fprintln(w, "Filters:")
+
+		for i, repo := range rs.Filter.Include {
+			if i == 0 {
+				fmt.Fprintf(w, "\tInclude:\n")
+			}
+
+			fmt.Fprintf(w, "\t\t%s\n", repo)
+		}
+	}
+	fmt.Fprintln(w, "")
 }

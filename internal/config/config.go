@@ -38,6 +38,20 @@ type RepoSet struct {
 
 	// Token is used to communicate with the GitHub API
 	Token string `json:"token"`
+
+	// Filter contains a set of filters that apply to this given reposet
+	Filter *FilterRules `json:"filter,omitempty"`
+}
+
+// FilterRules defines a set of rules to include or exclude repositories based
+// on certain criterias.
+type FilterRules struct {
+	// Include includes the repositories to sync.
+	Include []string `json:"include"`
+
+	// Exlude excludes the repositories to sync. If Include is set, Exclude
+	// doesn't have an affect.
+	Exclude []string `json:"exclude"`
 }
 
 // Load loads the configuration from its standard path.
@@ -135,6 +149,24 @@ func (c *Config) AddRepoSet(rs *RepoSet, force bool) error {
 	return nil
 }
 
+// DeleteRepoSet delets a repo set with it's name and returns the deleted reposet
+func (c *Config) DeleteRepoSet(name string) (*RepoSet, error) {
+	var deleted *RepoSet
+
+	for i, set := range c.RepoSets {
+		if set.Name == name {
+			deleted = set
+			c.RepoSets = append(c.RepoSets[:i], c.RepoSets[i+1:]...)
+		}
+	}
+
+	if deleted == nil {
+		return nil, fmt.Errorf("repo set with name %q doesn't exists", name)
+	}
+
+	return deleted, nil
+}
+
 // Save writes the config back to the local filesystem
 func (c *Config) Save() error {
 	path, err := configPath()
@@ -142,7 +174,7 @@ func (c *Config) Save() error {
 		return err
 	}
 
-	out, err := json.Marshal(c)
+	out, err := json.MarshalIndent(c, "", " ")
 	if err != nil {
 		return err
 	}
