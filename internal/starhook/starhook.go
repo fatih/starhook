@@ -70,7 +70,7 @@ func (s *Service) DeleteRepos(ctx context.Context, repos []*internal.Repository)
 	for _, repo := range repos {
 		repo := repo
 
-		err := sem.Go(func(ctx context.Context) error {
+		err := sem.Go(func() error {
 			return s.deleteRepo(ctx, repo)
 		})
 		if err != nil {
@@ -104,7 +104,7 @@ func (s *Service) CloneRepos(ctx context.Context, repos []*internal.Repository) 
 	for _, repo := range repos {
 		repo := repo
 
-		err := sem.Go(func(ctx context.Context) error {
+		err := sem.Go(func() error {
 			return s.cloneRepo(ctx, repo)
 		})
 		if err != nil {
@@ -176,7 +176,7 @@ func (s *Service) UpdateRepos(ctx context.Context, repos []*internal.Repository)
 	for _, repo := range repos {
 		repo := repo
 
-		err := sem.Go(func(ctx context.Context) error {
+		err := sem.Go(func() error {
 			return s.updateRepo(ctx, repo)
 		})
 		if err != nil {
@@ -229,7 +229,7 @@ func (s *Service) SyncRepos(ctx context.Context, repos, fetched []*internal.Repo
 		repo := repo
 		localRepo := localRepos[repo.Nwo]
 
-		err := sem.Go(func(ctx context.Context) error {
+		err := sem.Go(func() error {
 			return s.syncRepo(ctx, localRepo, repo)
 		})
 		if err != nil {
