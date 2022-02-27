@@ -1,13 +1,28 @@
 # starhook [![](https://github.com/fatih/starhook/workflows/build/badge.svg)](https://github.com/fatih/starhook/actions)
 
-Manage & Analyze repositories at scale
+Starhook is a tool to sync a set of repositories from a set of remote
+repositories to your localhost. It was created to scratch my own itch while
+working working with hundreds of different repositories. 
+`starhook` makes sure to sync with latest remote, so the default branch of
+a repository on your localhost is always synced with remote.
+
+Most of the time, you're working on a feature branch, finish your work and then
+creat a new branch from the default branch again. However you realize later
+that the default (main) branch is not in sync with remote, hence there are
+conflicts, and you have to spend time fixing it.
+
+The goal of `starhook` is to minimize spending time on solving conflicts and
+making sure all your repositories are in sync with remote. It fetches and
+updates repositories in parallel and is fast enough to sync hundreds of
+repositories under just a minute.
+
+For more information please read my blog past: TBD
 
 # Install
 
 ```bash
 go get github.com/fatih/starhook/cmd/starhook
 ```
-
 
 # Usage
 
@@ -23,7 +38,7 @@ $ mkdir -p /path/to/repos
 $ starhook config add --token=$GITHUB_TOKEN --dir /path/to/repos --query "user:fatih language:go" 
 starhook is initialized (config name: 'wonderful-star')
 
-Please run 'starhook sync' to download and sync you repositories.
+Please run 'starhook sync' to download and sync your repositories.
 ```
 
 Now, let's clone the repositories  with the `--dry-run` flag to see what is `starhook` planning to do:
@@ -36,7 +51,7 @@ updates found:
   clone  :  29
   update :   0
 
-remove -dry-run to update & clone the repositories
+remove -dry-run to sync the repositories
 ```
 
 As you see, it found `29` repositories. This command will all repositories that
@@ -91,15 +106,6 @@ local 29 repositories (last synced: 15 minutes ago)
 ```
 
 
-### Delete repositories
-
-To delete a repository from the local storage, use the `delete` subcommand with the `--id` flag:
-
-```
-$ starhook delete --id 3
-removed repository: "fatih/structs"
-```
-
 ### Create a second reposet
 
 As we said earlier, we can manage multiple `reposet`'s. Let's create another reposet, but this time for repositories that are written in VimScript:
@@ -109,7 +115,7 @@ $ mkdir -p /path/to/viml-repos
 $ starhook config add --token=$GITHUB_TOKEN --dir /path/to/viml-repos --query "user:fatih language:viml" 
 starhook is initialized (config name: 'shining-moon')
 
-Please run 'starhook config switch shining-moon && starhook sync' to download and sync you repositories.
+Please run 'starhook config switch shining-moon && starhook sync' to download and sync your repositories.
 ```
 
 Let's see all current reposets:

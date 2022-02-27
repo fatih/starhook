@@ -34,7 +34,6 @@ func Run() error {
 	rootCommand, rootConfig := newRootCommand()
 
 	rootCommand.Subcommands = []*ffcli.Command{
-		deleteCmd(rootConfig),
 		configCmd(rootConfig),
 		listCmd(rootConfig),
 		syncCmd(rootConfig),
