@@ -151,18 +151,20 @@ func (c *Sync) Exec(ctx context.Context, _ []string) error {
 	if err := svc.UpdateRepos(ctx, syncRepos.Update); err != nil {
 		return err
 	}
+	log.Printf("updated: %d repositories (elapsed time: %s)\n",
+		len(syncRepos.Update), time.Since(start).String())
 
+	start = time.Now()
 	if err := svc.DeleteRepos(ctx, syncRepos.Delete); err != nil {
 		return err
 	}
+	log.Printf("deleted: %d repositories (elapsed time: %s)\n",
+		len(syncRepos.Delete), time.Since(start).String())
 
 	for _, repo := range syncRepos.Update {
 		log.Printf("  %q is updated (last updated: %s)\n",
 			repo.Name, humanize.Time(repo.SyncedAt))
 	}
-
-	log.Printf("updated: %d repositories (elapsed time: %s)\n",
-		len(syncRepos.Update), time.Since(start).String())
 
 	return nil
 }
@@ -183,7 +185,6 @@ func filterRepos(rps []*github.Repository, rules *config.FilterRules) []*interna
 	}
 
 	log.Printf("[DEBUG] rules: %+v included repos %+v, excluded repos %+v\n", rules, includedRepos, excludedRepos)
-	log.Printf("[DEBUG] excluded repos %v\n", excludedRepos)
 
 	var include func(string) bool
 	if rules == nil {

@@ -36,6 +36,11 @@ func NewService(ghClient *gh.Client, store internal.MetadataStore, fs internal.R
 	}
 }
 
+// ListRepos lists all the repositories.
+func (s *Service) ListRepos(ctx context.Context) ([]*internal.Repository, error) {
+	return s.store.FindRepos(ctx, internal.RepositoryFilter{}, internal.DefaultFindOptions)
+}
+
 // DeleteRepo deletes the given repo from the DB and the folder if it's exist.
 func (s *Service) DeleteRepo(ctx context.Context, repoID int64) error {
 	repo, err := s.store.FindRepo(ctx, repoID)
@@ -58,12 +63,52 @@ func (s *Service) DeleteRepo(ctx context.Context, repoID int64) error {
 
 // DeleteRepos deletes the given repositories.
 func (s *Service) DeleteRepos(ctx context.Context, repos []*internal.Repository) error {
-	return nil
+	if len(repos) == 0 {
+		return nil
+	}
+
+	var wg sync.WaitGroup
+	var errs *multierror.Error
+	var mu sync.Mutex
+
+	const maxWorkers = 10
+	sem := semaphore.NewWeighted(maxWorkers)
+
+	for _, repo := range repos {
+		wg.Add(1)
+		repo := repo
+
+		err := sem.Acquire(ctx, 1)
+		if err != nil {
+			return fmt.Errorf("couldn't acquire semaphore: %s", err)
+		}
+
+		go func() {
+			defer sem.Release(1)
+			defer wg.Done()
+
+			if err := s.deleteRepo(ctx, repo); err != nil {
+				mu.Lock()
+				errs = multierror.Append(errs, err)
+				mu.Unlock()
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	return errs.ErrorOrNil()
 }
 
-// ListRepos lists all the repositories.
-func (s *Service) ListRepos(ctx context.Context) ([]*internal.Repository, error) {
-	return s.store.FindRepos(ctx, internal.RepositoryFilter{}, internal.DefaultFindOptions)
+// deleteRepo deletes the given repo from the DB and the folder if it's exist.
+func (s *Service) deleteRepo(ctx context.Context, repo *internal.Repository) error {
+	err := s.fs.DeleteRepo(ctx, repo)
+	if err != nil {
+		return err
+	}
+
+	repoID := repo.ID
+	return s.store.DeleteRepo(ctx, internal.RepositoryBy{RepoID: &repoID})
 }
 
 // CloneRepos clones the given repositories.
