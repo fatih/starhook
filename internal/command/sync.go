@@ -172,8 +172,8 @@ func (c *Sync) Exec(ctx context.Context, _ []string) error {
 func filterRepos(rps []*github.Repository, rules *config.FilterRules) []*internal.Repository {
 	repos := make([]*internal.Repository, 0, len(rps))
 
-	includedRepos := make(map[string]bool, 0)
-	excludedRepos := make(map[string]bool, 0)
+	includedRepos := make(map[string]bool)
+	excludedRepos := make(map[string]bool)
 	if rules != nil {
 		for _, nwo := range rules.Include {
 			includedRepos[nwo] = true
@@ -194,24 +194,14 @@ func filterRepos(rps []*github.Repository, rules *config.FilterRules) []*interna
 
 	if len(excludedRepos) != 0 {
 		// we include all repos, expect the ones in the excluded list
-		include = func(nwo string) bool {
-			if excludedRepos[nwo] {
-				return false
-			}
-			return true
-		}
+		include = func(nwo string) bool { return !excludedRepos[nwo] }
 	}
 
 	if len(includedRepos) != 0 {
 		// if included repos is set, it takes precedent over exclusion. In this
 		// case, we only include repos that are in the list and exclude
 		// everything else.
-		include = func(nwo string) bool {
-			if includedRepos[nwo] {
-				return true
-			}
-			return false
-		}
+		include = func(nwo string) bool { return includedRepos[nwo] }
 	}
 
 	for _, repo := range rps {
