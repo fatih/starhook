@@ -22,6 +22,12 @@ type Service struct {
 	fs     internal.RepositoryStore
 }
 
+type SyncRepos struct {
+	Clone  []*internal.Repository
+	Update []*internal.Repository
+	Delete []*internal.Repository
+}
+
 func NewService(ghClient *gh.Client, store internal.MetadataStore, fs internal.RepositoryStore) *Service {
 	return &Service{
 		client: ghClient,
@@ -50,44 +56,14 @@ func (s *Service) DeleteRepo(ctx context.Context, repoID int64) error {
 	return nil
 }
 
+// DeleteRepos deletes the given repositories.
+func (s *Service) DeleteRepos(ctx context.Context, repos []*internal.Repository) error {
+	return nil
+}
+
 // ListRepos lists all the repositories.
 func (s *Service) ListRepos(ctx context.Context) ([]*internal.Repository, error) {
 	return s.store.FindRepos(ctx, internal.RepositoryFilter{}, internal.DefaultFindOptions)
-}
-
-// ReposToUpdate returns the repositories to clone or update.
-func (s *Service) ReposToUpdate(ctx context.Context) ([]*internal.Repository, []*internal.Repository, error) {
-	repos, err := s.ListRepos(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if len(repos) == 0 {
-		return nil, nil, errors.New("no repositories to update")
-	}
-
-	var (
-		clone  []*internal.Repository
-		update []*internal.Repository
-	)
-
-	for _, repo := range repos {
-		if repo.SyncedAt.IsZero() {
-			log.Printf("[DEBUG] clone, owner: %q, name: %q, branch: %q, sha: %q",
-				repo.Owner, repo.Name, repo.Branch, repo.SHA)
-			clone = append(clone, repo)
-			continue
-		}
-
-		if repo.SyncedAt.Before(repo.BranchUpdatedAt) {
-			log.Printf("[DEBUG] update, owner: %q, name: %q, branch: %q, sha: %q",
-				repo.Owner, repo.Name, repo.Branch, repo.SHA)
-			update = append(update, repo)
-		}
-
-	}
-
-	return clone, update, nil
 }
 
 // CloneRepos clones the given repositories.
@@ -218,11 +194,23 @@ func (s *Service) UpdateRepos(ctx context.Context, repos []*internal.Repository)
 	return errs.ErrorOrNil()
 }
 
-// SyncRepos syncs the repositories in the store, with the fetched remote repositories.
-func (s *Service) SyncRepos(ctx context.Context, repos, fetchedRepos []*internal.Repository) error {
+// SyncRepos syncs the repositories in the store, with the fetched remote
+// repositories and returns the repositories to clone, update or delete.
+func (s *Service) SyncRepos(ctx context.Context, repos, fetched []*internal.Repository) (*SyncRepos, error) {
+	var (
+		clone   []*internal.Repository
+		update  []*internal.Repository
+		deleted []*internal.Repository
+	)
+
 	localRepos := make(map[string]*internal.Repository, len(repos))
 	for _, repo := range repos {
 		localRepos[repo.Nwo] = repo
+	}
+
+	fetchedRepos := make(map[string]*internal.Repository, len(fetched))
+	for _, repo := range fetched {
+		fetchedRepos[repo.Nwo] = repo
 	}
 
 	var wg sync.WaitGroup
@@ -232,14 +220,29 @@ func (s *Service) SyncRepos(ctx context.Context, repos, fetchedRepos []*internal
 	const maxWorkers = 5
 	sem := semaphore.NewWeighted(maxWorkers)
 
+	// check for repos to delete
+	for _, repo := range localRepos {
+		if _, ok := fetchedRepos[repo.Nwo]; !ok {
+			// local repository doesn't exist in the final, fetched list, needs
+			// to be removed
+			deleted = append(deleted, repo)
+			delete(localRepos, repo.Nwo)
+		}
+	}
+
+	if len(fetchedRepos) != len(localRepos) {
+		return nil, fmt.Errorf("mismatch of local (%d) and fetched (%d) repos", len(localRepos), len(fetchedRepos))
+	}
+
 	log.Printf("[DEBUG] syncing with local store, fetched repos: %d local repos: %d", len(fetchedRepos), len(localRepos))
+	// check for repos to update or clone
 	for _, repo := range fetchedRepos {
 		wg.Add(1)
 		repo := repo
 		localRepo := localRepos[repo.Nwo]
 
 		if err := sem.Acquire(ctx, 1); err != nil {
-			return fmt.Errorf("couldn't acquire semaphore: %s", err)
+			return nil, fmt.Errorf("couldn't acquire semaphore: %s", err)
 		}
 
 		go func() {
@@ -257,8 +260,43 @@ func (s *Service) SyncRepos(ctx context.Context, repos, fetchedRepos []*internal
 	}
 
 	wg.Wait()
+	if errs != nil {
+		return nil, errs.ErrorOrNil()
+	}
 
-	return errs.ErrorOrNil()
+	syncedRepos := make([]*internal.Repository, 0)
+
+	// TODO(fatih): use a more efficient fetching, dont do it one by one
+	for _, repo := range localRepos {
+		rp, err := s.store.FindRepo(ctx, repo.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		syncedRepos = append(syncedRepos, rp)
+	}
+
+	for _, repo := range syncedRepos {
+		if repo.SyncedAt.IsZero() {
+			log.Printf("[DEBUG] clone, owner: %q, name: %q, branch: %q, sha: %q",
+				repo.Owner, repo.Name, repo.Branch, repo.SHA)
+			clone = append(clone, repo)
+			continue
+		}
+
+		if repo.SyncedAt.Before(repo.BranchUpdatedAt) {
+			log.Printf("[DEBUG] update, owner: %q, name: %q, branch: %q, sha: %q",
+				repo.Owner, repo.Name, repo.Branch, repo.SHA)
+			update = append(update, repo)
+		}
+
+	}
+
+	return &SyncRepos{
+		Clone:  clone,
+		Update: update,
+		Delete: deleted,
+	}, nil
 }
 
 // syncRepo sync the local repo with the fetched repo
