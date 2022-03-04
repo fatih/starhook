@@ -3,6 +3,7 @@ package semgroup
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 )
 
@@ -22,14 +23,28 @@ func TestGroup_multiple_tasks(t *testing.T) {
 	ctx := context.Background()
 	g := NewGroup(ctx, 1)
 
-	g.Go(func() error { return nil })
-	g.Go(func() error { return nil })
-	g.Go(func() error { return nil })
-	g.Go(func() error { return nil })
+	count := 0
+	var mu sync.Mutex
+
+	inc := func() error {
+		mu.Lock()
+		count++
+		mu.Unlock()
+		return nil
+	}
+
+	g.Go(func() error { return inc() })
+	g.Go(func() error { return inc() })
+	g.Go(func() error { return inc() })
+	g.Go(func() error { return inc() })
 
 	err := g.Wait()
 	if err != nil {
 		t.Errorf("g.Wait() should not return an error")
+	}
+
+	if count != 4 {
+		t.Errorf("count should be %d, got: %d", 4, count)
 	}
 }
 
