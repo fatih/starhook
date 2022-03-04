@@ -9,7 +9,8 @@ import (
 
 	"github.com/fatih/starhook/internal"
 	"github.com/fatih/starhook/internal/gh"
-	"github.com/fatih/starhook/internal/semgroup"
+
+	"github.com/fatih/semgroup"
 )
 
 type Service struct {
