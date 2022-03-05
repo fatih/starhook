@@ -4,7 +4,7 @@ go 1.14
 
 require (
 	github.com/dustin/go-humanize v1.0.0
-	github.com/fatih/semgroup v1.0.0
+	github.com/fatih/semgroup v1.1.0
 	github.com/frankban/quicktest v1.10.0
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/go-github/v39 v39.2.0
