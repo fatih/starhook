@@ -4,9 +4,13 @@ Starhook is a tool to manage and sync a set of repositories from a group of remo
 
 It was created to scratch my itch while working with hundreds of different repositories. `starhook` syncs with the latest remote, so the default branch of a repository on your localhost is always synced with the remote.
 
-Here is a use case: Most of the time, you work on a feature branch, finish your work and then create a new branch from the default branch. However, you realize later that the default (main) branch is not in sync with the remote; hence there are conflicts, and you must spend time fixing it. `starhook` aims to minimize spending time on solving conflicts and ensure all your repositories are in sync with remote. It fetches and updates repositories in parallel and is fast enough to sync hundreds of repositories in under a minute.
+# Why?
 
-`starhook` also enables you to manipulate all your repositories locally. You can use tools like `grep`, `awk`, and `sed` or write scripts that run on the repositories.
+Here is a use case: Most of the time, you work on a feature branch, finish your work and then create a new branch from the default branch. However, you realize later that the default (main) branch is not in sync with the remote; hence there are conflicts, and you must fix them. 
+
+`starhook` aims to minimize spending time on solving conflicts and ensure all your repositories are in sync with remote. It fetches and updates repositories in parallel and is fast enough to sync hundreds of repositories. If you work for a company that uses hundreds of different repositories, `starhook` can make your day-to-day life easier and more manageable. 
+
+`starhook` also enables you to manipulate all your repositories locally. You can use tools like `grep`, `awk`, and `sed` or write scripts that run on the repositories. 
 
 # Install
 
