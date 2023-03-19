@@ -7,8 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-
-	"github.com/99designs/keyring"
 )
 
 const (
@@ -22,9 +20,6 @@ type Config struct {
 	Selected string `json:"selected"`
 
 	RepoSets []*RepoSet `json:"repo_sets"`
-
-	// githubToken is used to communicate with the GitHub API
-	githubToken string
 
 	path string `json:"-"`
 }
@@ -58,15 +53,14 @@ type FilterRules struct {
 
 // New creates a new, empty configuration file. The user should populate the
 // config afterwards.
-func New(token string) (*Config, error) {
+func New() (*Config, error) {
 	path, err := configPath()
 	if err != nil {
 		return nil, err
 	}
 
 	cfg := &Config{
-		path:        path,
-		githubToken: token,
+		path: path,
 	}
 
 	return cfg, nil
@@ -93,19 +87,6 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
-	ring, err := keyring.Open(keyring.Config{
-		ServiceName: "starhook",
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	i, err := ring.Get("github_token")
-	if err != nil {
-		return nil, err
-	}
-
-	cfg.githubToken = string(i.Data)
 	cfg.path = path
 	return cfg, nil
 }
@@ -113,11 +94,6 @@ func Load() (*Config, error) {
 // Path returns the absolute path of the config file's location.
 func (c *Config) Path() string {
 	return c.path
-}
-
-// GithubToken returns the github token to be used with the GitHub APIAPI.
-func (c *Config) GitHubToken() string {
-	return c.githubToken
 }
 
 // SelectedRepoSet returns the selected reposet, if available
