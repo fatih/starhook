@@ -215,6 +215,10 @@ func configDeleteCmd(rootConfig *RootConfig) *ffcli.Command {
 				return err
 			}
 
+			if cfg.Selected == configName {
+				cfg.Selected = ""
+			}
+
 			if includeRepos {
 				if err := os.RemoveAll(deletedSet.ReposDir); err != nil {
 					return err
