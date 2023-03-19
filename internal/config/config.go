@@ -54,6 +54,21 @@ type FilterRules struct {
 	Exclude []string `json:"exclude"`
 }
 
+// New creates a new, empty configuration file. The user should populate the
+// config afterwards.
+func New() (*Config, error) {
+	path, err := configPath()
+	if err != nil {
+		return nil, err
+	}
+
+	cfg := &Config{
+		path: path,
+	}
+
+	return cfg, nil
+}
+
 // Load loads the configuration from its standard path.
 func Load() (*Config, error) {
 	path, err := configPath()
@@ -79,32 +94,6 @@ func Load() (*Config, error) {
 	return cfg, nil
 }
 
-// Create creates a new, empty configuration file. The user should populate the
-// config afterwards.
-func Create() (*Config, error) {
-	path, err := configPath()
-	if err != nil {
-		return nil, err
-	}
-
-	out, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, errors.New("config file doesn't exist")
-		}
-		return nil, err
-	}
-
-	var cfg *Config
-	err = json.Unmarshal(out, &cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	cfg.path = path
-	return cfg, nil
-}
-
 // Path returns the absolute path of the config file's location.
 func (c *Config) Path() string {
 	return c.path
@@ -112,6 +101,10 @@ func (c *Config) Path() string {
 
 // SelectedRepoSet returns the selected reposet, if available
 func (c *Config) SelectedRepoSet() (*RepoSet, error) {
+	if c.Selected == "" {
+		return nil, errors.New("no reposet is selected. Use 'starhook config switch' to select a reposet")
+	}
+
 	var rs *RepoSet
 	for _, r := range c.RepoSets {
 		if r.Name == c.Selected {
@@ -179,11 +172,11 @@ func (c *Config) Save() error {
 		return err
 	}
 
-	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
 
-	err = os.WriteFile(path, out, 0600)
+	err = os.WriteFile(path, out, 0o600)
 	if err != nil {
 		return err
 	}
