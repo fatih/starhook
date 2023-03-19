@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
@@ -65,20 +66,20 @@ func configInitCmd(rootConfig *RootConfig) *ffcli.Command {
 		force bool
 	)
 
-	fs := flag.NewFlagSet("starhook config init", flag.ExitOnError)
-	rootConfig.RegisterFlags(fs)
+	fst := flag.NewFlagSet("starhook config init", flag.ExitOnError)
+	rootConfig.RegisterFlags(fst)
 
-	fs.StringVar(&token, "token", "", "github token, i.e: GITHUB_TOKEN")
-	fs.StringVar(&dir, "dir", "", "absolute path to download the repositories")
-	fs.StringVar(&query, "query", "", "query to fetch the repositories")
-	fs.StringVar(&name, "name", "", "name of the configuration (optional)")
-	fs.BoolVar(&force, "force", false, "override existing configuration for a given --name ")
+	fst.StringVar(&token, "token", "", "github token, i.e: GITHUB_TOKEN")
+	fst.StringVar(&dir, "dir", "", "absolute path to download the repositories")
+	fst.StringVar(&query, "query", "", "query to fetch the repositories")
+	fst.StringVar(&name, "name", "", "name of the configuration (optional)")
+	fst.BoolVar(&force, "force", false, "override existing configuration for a given --name ")
 
 	return &ffcli.Command{
 		Name:       "init",
 		ShortUsage: "starhook config init [flags] [<prefix>]",
 		ShortHelp:  "Initialize a new configuration",
-		FlagSet:    fs,
+		FlagSet:    fst,
 		Exec: func(ctx context.Context, _ []string) error {
 			if token == "" {
 				return errors.New("--token should be set")
@@ -112,8 +113,8 @@ func configInitCmd(rootConfig *RootConfig) *ffcli.Command {
 
 			cfg, err := config.Load()
 			if err != nil {
-				if errors.Is(err, os.ErrNotExist) {
-					cfg, err = config.Create()
+				if errors.Is(err, fs.ErrNotExist) {
+					cfg, err = config.New()
 					if err != nil {
 						return err
 					}
