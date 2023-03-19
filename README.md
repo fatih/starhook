@@ -19,9 +19,9 @@ go install github.com/fatih/starhook/cmd/starhook@latest
 
 ### Initialize & clone repositories
 
-First, let us initialize starhook to sync the repositories. A set of repositories is called a `reposet` and you can have multiple reposets based on different queries or even GitHub tokens. Let's start adding our first `reposet`.
+First, let us initialize starhook to sync the repositories. A set of repositories is called a `reposet` and you can have multiple reposets based on different queries. Let's start adding our first `reposet`.
 
-Pass the GitHub token, the location to store your repositories and the query needed to fetch the repositories:
+Pass the GitHub token, the location to download your repositories and the query needed to fetch the repositories:
 
 ```
 $ mkdir -p /path/to/repos
@@ -31,7 +31,7 @@ starhook is initialized (config name: 'wonderful-star')
 Please run 'starhook sync' to download and sync your repositories.
 ```
 
-Now, let's clone the repositories  with the `--dry-run` flag to see what is `starhook` planning to do:
+The token is only needed once and is saved into your operating systems secure storage service (keychain, keyring, etc..). Now, let's clone the repositories  with the `--dry-run` flag to see what is `starhook` planning to do:
 
 ```
 $ starhook sync --dry-run
