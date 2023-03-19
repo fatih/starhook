@@ -64,10 +64,20 @@ func (c *Sync) Exec(ctx context.Context, _ []string) error {
 		return err
 	}
 
-	log.Printf("[DEBUG] selected reposet: %s query: %s filters: %s\n", rs.Name, rs.Query, rs.Filter)
-	ghClient := gh.NewClient(ctx, rs.Token)
+	ring, err := openKeyring()
+	if err != nil {
+		return err
+	}
 
-	if err := os.MkdirAll(filepath.Dir(rs.ReposDir), 0700); err != nil {
+	i, err := ring.Get(keyringKey)
+	if err != nil {
+		return err
+	}
+
+	log.Printf("[DEBUG] selected reposet: %s query: %s filters: %s\n", rs.Name, rs.Query, rs.Filter)
+	ghClient := gh.NewClient(ctx, string(i.Data))
+
+	if err := os.MkdirAll(filepath.Dir(rs.ReposDir), 0o700); err != nil {
 		return err
 	}
 

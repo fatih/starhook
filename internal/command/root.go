@@ -113,7 +113,18 @@ func newStarHookService() (*starhook.Service, error) {
 	}
 
 	ctx := context.Background()
-	ghClient := gh.NewClient(ctx, rs.Token)
+
+	ring, err := openKeyring()
+	if err != nil {
+		return nil, err
+	}
+
+	i, err := ring.Get(keyringKey)
+	if err != nil {
+		return nil, err
+	}
+
+	ghClient := gh.NewClient(ctx, string(i.Data))
 
 	store, err := jsonstore.NewMetadataStore(rs.ReposDir, rs.Query)
 	if err != nil {

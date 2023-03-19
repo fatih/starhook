@@ -12,9 +12,15 @@ import (
 	"path/filepath"
 	"text/tabwriter"
 
+	"github.com/99designs/keyring"
 	"github.com/fatih/starhook/internal/config"
 	"github.com/lucasepe/codename"
 	"github.com/peterbourgon/ff/v3/ffcli"
+)
+
+const (
+	keyringKey     = "github-token"
+	keyringService = "starhook"
 )
 
 // Config is the config for the list subcommand, including a reference to the
@@ -106,15 +112,28 @@ func configInitCmd(rootConfig *RootConfig) *ffcli.Command {
 
 			rs := &config.RepoSet{
 				Name:     name,
-				Token:    token,
 				Query:    query,
 				ReposDir: dir,
+			}
+
+			ring, err := openKeyring()
+			if err != nil {
+				return err
 			}
 
 			cfg, err := config.Load()
 			if err != nil {
 				if errors.Is(err, fs.ErrNotExist) {
 					cfg, err = config.New()
+					if err != nil {
+						return err
+					}
+
+					err = ring.Set(keyring.Item{
+						Key:         keyringKey,
+						Data:        []byte(token),
+						Description: "GitHub API token for Starhook CLI",
+					})
 					if err != nil {
 						return err
 					}
@@ -198,6 +217,10 @@ func configDeleteCmd(rootConfig *RootConfig) *ffcli.Command {
 			deletedSet, err := cfg.DeleteRepoSet(configName)
 			if err != nil {
 				return err
+			}
+
+			if cfg.Selected == configName {
+				cfg.Selected = ""
 			}
 
 			if includeRepos {
@@ -301,4 +324,18 @@ func printRepoSet(w io.Writer, rs *config.RepoSet) {
 		}
 	}
 	fmt.Fprintln(w, "")
+}
+
+func openKeyring() (keyring.Keyring, error) {
+	return keyring.Open(keyring.Config{
+		ServiceName: keyringService,
+		AllowedBackends: []keyring.BackendType{
+			keyring.SecretServiceBackend,
+			keyring.KWalletBackend,
+			keyring.KeychainBackend,
+			keyring.WinCredBackend,
+		},
+		KeychainTrustApplication: true,
+		KeychainSynchronizable:   true,
+	})
 }
