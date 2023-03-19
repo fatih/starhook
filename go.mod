@@ -3,6 +3,7 @@ module github.com/fatih/starhook
 go 1.14
 
 require (
+	github.com/99designs/keyring v1.2.2 // indirect
 	github.com/dustin/go-humanize v1.0.1
 	github.com/fatih/semgroup v1.2.0
 	github.com/frankban/quicktest v1.10.0

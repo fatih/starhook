@@ -113,7 +113,7 @@ func newStarHookService() (*starhook.Service, error) {
 	}
 
 	ctx := context.Background()
-	ghClient := gh.NewClient(ctx, rs.Token)
+	ghClient := gh.NewClient(ctx, cfg.GitHubToken())
 
 	store, err := jsonstore.NewMetadataStore(rs.ReposDir, rs.Query)
 	if err != nil {

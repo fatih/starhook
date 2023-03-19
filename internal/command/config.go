@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"text/tabwriter"
 
+	"github.com/99designs/keyring"
 	"github.com/fatih/starhook/internal/config"
 	"github.com/lucasepe/codename"
 	"github.com/peterbourgon/ff/v3/ffcli"
@@ -106,7 +107,6 @@ func configInitCmd(rootConfig *RootConfig) *ffcli.Command {
 
 			rs := &config.RepoSet{
 				Name:     name,
-				Token:    token,
 				Query:    query,
 				ReposDir: dir,
 			}
@@ -114,7 +114,22 @@ func configInitCmd(rootConfig *RootConfig) *ffcli.Command {
 			cfg, err := config.Load()
 			if err != nil {
 				if errors.Is(err, fs.ErrNotExist) {
-					cfg, err = config.New()
+					cfg, err = config.New(token)
+					if err != nil {
+						return err
+					}
+
+					ring, err := keyring.Open(keyring.Config{
+						ServiceName: "starhook",
+					})
+					if err != nil {
+						return err
+					}
+
+					err = ring.Set(keyring.Item{
+						Key:  "github_token",
+						Data: []byte(token),
+					})
 					if err != nil {
 						return err
 					}
