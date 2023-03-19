@@ -99,7 +99,7 @@ func (c *Config) Path() string {
 // SelectedRepoSet returns the selected reposet, if available
 func (c *Config) SelectedRepoSet() (*RepoSet, error) {
 	if c.Selected == "" {
-		return nil, errors.New("no reposet is selected. Use 'starhook config switch' to select a reposet")
+		return nil, errors.New("no repo set is selected. Use 'starhook config switch' to select a reposet")
 	}
 
 	var rs *RepoSet
